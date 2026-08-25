@@ -614,11 +614,17 @@ function signs(
   const at = (fraction: number): number => frame.cx + fraction * frame.width;
   const fh = frame.floorHeight;
   const result: SignPart[] = [];
+  // Этот источник вешает вывески на лицевую грань — она же южная: он ставит их
+  // за плоскостью `frame.z1`. Сторона называется явно и уходит в данные, потому
+  // что разворачивать плоскость по ней должен движок, а знать про лицевую грань
+  // конкретного корпуса он не вправе.
+  const side: Side = 'south';
   const number = /\d+/.exec(passport.shortName)?.[0];
   if (number) {
     const plate = spec?.number;
     result.push({
-      name: 'facade.floor.01.wall.south.sign.number',
+      name: `facade.floor.01.wall.${side}.sign.number`,
+      side,
       center: {
         x: at(plate?.x ?? profile.tower.center),
         y: plate?.y ?? fh * SIGN_FALLBACK.number.y,
@@ -635,7 +641,8 @@ function signs(
   if (title) {
     const plate = spec?.title;
     result.push({
-      name: 'facade.floor.01.wall.south.sign.title',
+      name: `facade.floor.01.wall.${side}.sign.title`,
+      side,
       center: {
         x: at(plate?.x ?? SIGN_FALLBACK.title.x),
         y: plate?.y ?? fh * SIGN_FALLBACK.title.y,

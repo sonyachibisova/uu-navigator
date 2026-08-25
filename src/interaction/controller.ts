@@ -9,7 +9,6 @@ import { Vector3 } from 'three';
 import type { Camera } from 'three';
 import type { Store, SceneState } from '@core/state';
 import type { BuildingHandle } from '@building/building';
-import type { RoomView } from '@building/source';
 import { RoomPicker } from '@interaction/picker';
 
 export interface InteractionHandle {
@@ -29,6 +28,12 @@ export interface InteractionOptions {
 
 /** Порог, за которым движение указателя считается вращением камеры, а не кликом. */
 const DRAG_THRESHOLD = 6;
+/**
+ * Степень раскрытия, начиная с которой клик по помещению разрешён в режиме
+ * «здание целиком». Пока оболочка цела, интерьера за ней не видно, и попадание
+ * по плите означало бы выбор помещения сквозь глухую стену.
+ */
+const PICKABLE_OPENNESS = 0.35;
 
 export function createInteraction(options: InteractionOptions): InteractionHandle {
   const { canvas, camera, store, building, focus, home } = options;
@@ -41,15 +46,13 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
   let downY = 0;
   let startedOnCanvas = false;
 
-  function roomsOfActiveFloor(): readonly RoomView[] {
-    const level = store.state.activeFloor;
-    if (level === null) return [];
-    return building.floors.find((floor) => floor.level === level)?.rooms ?? [];
-  }
-
   function pickAt(event: PointerEvent | MouseEvent): string | null {
     const state = store.state;
-    if (state.mode !== 'floor' || state.activeFloor === null) return null;
+    // Режим больше не решает, есть ли кликабельный слой: в «здании целиком»
+    // интерьеры видны сквозь растворённые грани, и клик по ним обязан работать.
+    // Он решает только, чем ограничен выбор — одним этажом или всеми сразу.
+    const level = state.mode === 'floor' ? state.activeFloor : null;
+    if (level === null && building.openness() < PICKABLE_OPENNESS) return null;
     const rect = canvas.getBoundingClientRect();
     const hit = picker.pick(
       event.clientX - rect.left,
@@ -57,8 +60,7 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
       rect.width,
       rect.height,
       camera,
-      building.pickTarget(state.activeFloor),
-      roomsOfActiveFloor(),
+      building.pickTargets(level),
       occluders,
     );
     return hit ? hit.room.id : null;

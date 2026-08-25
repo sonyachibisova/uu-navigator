@@ -23,6 +23,19 @@ import { createFloors } from '@building/floors';
 import type { BuildingPassport, BuildingSource, FloorView, RoomView } from '@building/source';
 import { passportCenter, passportRadius } from '@building/source';
 
+/**
+ * Кликабельный слой одного этажа: плита помещений и сами помещения в порядке
+ * `instanceId`. Слой отдаётся наружу уже собранным, потому что raycasting идёт
+ * на каждое движение указателя и не должен ничего собирать заново.
+ */
+export interface PickLayer {
+  mesh: InstancedMesh;
+  rooms: readonly RoomView[];
+}
+
+/** Пустой набор слоёв: константа, чтобы не создавать массив на каждый промах. */
+const NO_LAYERS: readonly PickLayer[] = [];
+
 export interface BuildingHandle {
   passport: BuildingPassport;
   /** Этажи так, как их видит интерфейс: номер, название, известна ли планировка. */
@@ -43,8 +56,18 @@ export interface BuildingHandle {
    */
   update: (dt: number, cameraPosition: Vector3, overviewDistance: number) => boolean;
   roomById: (id: string) => RoomView | undefined;
-  /** Кликабельный слой активного этажа для raycasting. */
-  pickTarget: (level: number | null) => InstancedMesh | undefined;
+  /**
+   * Кликабельные слои для raycasting. `level` — выбранный этаж; `null` означает
+   * «здание целиком», и тогда кликабельны все этажи с известной планировкой:
+   * в этом ракурсе интерьеры видны, и клик по ним обязан работать.
+   */
+  pickTargets: (level: number | null) => readonly PickLayer[];
+  /**
+   * Степень раскрытия кукольного дома `t ∈ [0,1]`. Нужна взаимодействию как
+   * условие «интерьер проявился, клик разрешён»: пока оболочка цела, помещений
+   * за ней не видно и попадать по ним нельзя.
+   */
+  openness: () => number;
   /**
    * Непрозрачные группы, которые могут закрывать помещение от курсора:
    * оболочка, навесной фасад и кровля. Нужны, чтобы клик не проходил сквозь стену.
@@ -82,6 +105,18 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
 
   /** Последнее применённое состояние: из него берётся срез по этажу. */
   let applied: SceneState | undefined;
+  /** Применять ли текущую сборку мгновенно. Читается замыканием `set`. */
+  let immediateNow = false;
+
+  /**
+   * Отдать величину каналу. Замыкание поднято в область фабрики намеренно:
+   * `compose()` вызывается каждый кадр, и создавать в нём функцию — единственная
+   * аллокация, которая там оставалась.
+   */
+  function set(channel: string, value: number): void {
+    if (immediateNow) fade.setChannelImmediate(channel, value);
+    else fade.setChannelTarget(channel, value);
+  }
 
   /**
    * Собрать прозрачность и отдать её в `FadeRegistry`.
@@ -94,16 +129,23 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
   function compose(immediate: boolean): void {
     const state = applied;
     if (!state) return;
+    immediateNow = immediate;
     const whole = state.mode === 'whole' || state.activeFloor === null;
-    const set = (channel: string, value: number): void => {
-      if (immediate) fade.setChannelImmediate(channel, value);
-      else fade.setChannelTarget(channel, value);
-    };
-    shell.fragments.forEach((fragment, index) => {
+    const fragments = shell.fragments;
+    for (let index = 0; index < fragments.length; index += 1) {
+      const fragment = fragments[index];
+      if (!fragment) continue;
       // Срез по потолку выбранного этажа: кольца выше уходят, нижние остаются.
-      const ring = whole || fragment.level <= (state.activeFloor ?? fragment.level) ? 1 : 0;
-      set(fragment.channel, ring * (1 - dollhouse.dissolve(index)));
-    });
+      // Условие вынесено в отдельное имя: `||` вплотную к `?:` читается неоднозначно.
+      const cut = state.activeFloor ?? fragment.level;
+      const ring = whole || fragment.level <= cut ? 1 : 0;
+      // В режиме этажа раскрытие человек уже выбрал кнопкой, и гасить его
+      // множителем близости камеры нельзя: иначе ближняя стена выбранного
+      // этажа остаётся глухой — не пропускает ни взгляд, ни клик. Грань всё
+      // равно растворяется только тогда, когда смотрит на камеру.
+      const reveal = whole ? dollhouse.dissolve(index) : dollhouse.facing(index);
+      set(fragment.channel, ring * (1 - reveal));
+    }
     // Кровля уходит и от среза по этажу, и от взгляда сверху — но опять одним
     // произведением: у её прозрачности один хозяин.
     set(ROOF_CHANNEL, (whole ? 1 : 0) * (1 - dollhouse.roofLift()));
@@ -113,6 +155,21 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
       immediate,
       dollhouse.openness(),
     );
+  }
+
+  // Набор окклюдеров не меняется за жизнь здания: массив собирается один раз
+  // и отдаётся наружу как есть, без копии на каждый опрос.
+  const occluderGroups: Object3D[] = [shell.shellGroup, shell.facadeGroup, roof.roofGroup];
+
+  // Кликабельные слои собираются один раз: raycasting идёт на каждое движение
+  // указателя, и собирать наборы в этот момент нельзя.
+  const allPickLayers: PickLayer[] = [];
+  const pickLayersByLevel = new Map<number, readonly PickLayer[]>();
+  for (const floor of floors.floors) {
+    if (!floor.plates) continue;
+    const layer: PickLayer = { mesh: floor.plates, rooms: floor.rooms };
+    allPickLayers.push(layer);
+    pickLayersByLevel.set(floor.level, [layer]);
   }
 
   function applyState(state: SceneState, immediate = false): void {
@@ -134,12 +191,18 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
       return fade.consumeDirty();
     },
     roomById: floors.roomById,
-    pickTarget(level): InstancedMesh | undefined {
-      if (level === null) return undefined;
-      return floors.byLevel(level)?.plates;
+    pickTargets(level): readonly PickLayer[] {
+      if (level === null) return allPickLayers;
+      return pickLayersByLevel.get(level) ?? NO_LAYERS;
     },
-    occluders: () => [shell.shellGroup, shell.facadeGroup, roof.roofGroup],
+    openness: () => dollhouse.openness(),
+    occluders: () => occluderGroups,
     dispose(): void {
+      // Ссылки на снятые меши не должны пережить здание: и кликабельные слои,
+      // и окклюдеры держат их напрямую.
+      allPickLayers.length = 0;
+      pickLayersByLevel.clear();
+      occluderGroups.length = 0;
       floors.dispose();
       roof.dispose();
       shell.dispose();

@@ -11,6 +11,7 @@
  */
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { DISTANCE_FULL, ROOF_FULL } from '@core/dollhouse';
 import { prefersReducedMotion } from '@core/motion';
 
 /** Габарит, от которого считаются все расстояния камеры. */
@@ -47,12 +48,17 @@ const TARGET_LAMBDA = 3.7;
 const FLIGHT_LAMBDA = 4.2;
 /**
  * Подлёт «заглянуть внутрь»: подъём над горизонтом в градусах и расстояние в
- * долях дистанции обзора. Доля взята заведомо меньше порога полного раскрытия
- * из `src/core/dollhouse.ts`, чтобы кукольный дом раскрылся сам, от близости
- * камеры, а не по отдельной команде.
+ * долях дистанции обзора.
+ *
+ * Оба числа зависимые, и оба выводятся из порогов кукольного дома
+ * (`src/core/dollhouse.ts`), а не подбираются отдельно — иначе они разъезжаются
+ * молча. Камера обязана встать ближе `DISTANCE_FULL`, иначе кнопка подводит
+ * камеру, но ничего не раскрывает, и подняться выше `ROOF_FULL`, иначе после
+ * подлёта над верхним этажом остаётся полупрозрачная плёнка кровли.
+ * Запас в обе стороны небольшой: ракурс не должен становиться отвесным.
  */
-const REVEAL_ELEVATION = 40;
-const REVEAL_DISTANCE_FACTOR = 0.52;
+const REVEAL_ELEVATION = ROOF_FULL + 4;
+const REVEAL_DISTANCE_FACTOR = DISTANCE_FULL - 0.03;
 /** Ниже горизонта камера не опускается: под землёй смотреть не на что. */
 const MAX_POLAR = MathUtils.degToRad(85);
 /** Ближняя и дальняя плоскости в долях габарита. */

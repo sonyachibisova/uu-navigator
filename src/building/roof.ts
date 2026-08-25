@@ -26,7 +26,10 @@ export function createRoof(roof: RoofView, palette: Palette, fade: FadeRegistry)
 
   const batcher = new PartBatcher();
   for (const part of roof.parts) {
-    // Владелец батча — сам элемент: плита, парапет и надстройка растворяются порознь.
+    // Владелец батча — сам элемент: у плиты, парапета и надстройки остаются
+    // собственные имена, по которым их находят в сцене. Растворяются они при
+    // этом вместе, одним каналом `ROOF_CHANNEL`: величина у кровли одна — угол
+    // взгляда к горизонту, и делить её между элементами нечем.
     batcher.add(part.name, part);
   }
   const meshes: InstancedMesh[] = batcher.build(roofGroup, palette.surface);

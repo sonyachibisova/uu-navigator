@@ -42,7 +42,12 @@ import { MathUtils, Vector3 } from 'three';
  */
 const DISTANCE_ENTER = 0.78;
 const DISTANCE_EXIT = 0.86;
-const DISTANCE_FULL = 0.55;
+/**
+ * Экспортируется намеренно: подлёт «заглянуть внутрь» в `src/core/camera.ts`
+ * обязан подводить камеру ближе этого порога, иначе кнопка ничего не раскрывает.
+ * Число там выводится отсюда, а не подбирается заново.
+ */
+export const DISTANCE_FULL = 0.55;
 
 /**
  * Косинус угла между внешней нормалью фрагмента и горизонтальным направлением
@@ -56,7 +61,12 @@ const FACING_FULL = 0.55;
 /** Угол взгляда к горизонту, градусы: выше — кровля уходит. */
 const ROOF_ENTER = 26;
 const ROOF_EXIT = 20;
-const ROOF_FULL = 48;
+/**
+ * Угол, выше которого кровля снята полностью. Экспортируется по той же причине,
+ * что и `DISTANCE_FULL`: подлёт в `src/core/camera.ts` обязан поднимать камеру
+ * не ниже этого угла, иначе над верхним этажом остаётся плёнка кровли.
+ */
+export const ROOF_FULL = 48;
 
 /** Скорость сглаживания степени раскрытия: λ в `damp`. */
 const LAMBDA = 10;
@@ -99,6 +109,13 @@ export interface DollhouseHandle {
   openness: () => number;
   /** Насколько растворён фрагмент по порядковому номеру: 0 — цел, 1 — растворён. */
   dissolve: (index: number) => number;
+  /**
+   * Насколько грань повёрнута к наблюдателю: 0 — вскользь или прочь, 1 — в лоб.
+   * Это `dissolve` без множителя общей близости камеры. Нужно режиму «этаж»,
+   * где раскрытие уже выбрано человеком кнопкой, а направление взгляда
+   * по-прежнему решает, какая именно грань растворяется.
+   */
+  facing: (index: number) => number;
   /** Насколько ушла кровля: 0 — на месте, 1 — снята. */
   roofLift: () => number;
 }
@@ -114,7 +131,10 @@ export interface DollhouseOptions {
 interface FragmentState {
   fragment: DollhouseFragment;
   /** Считаем ли грань обращённой к наблюдателю. Липкий флаг: у него разные пороги. */
-  facing: boolean;
+  toward: boolean;
+  /** Доля повёрнутости грани к наблюдателю, без множителя близости камеры. */
+  amount: number;
+  /** Итоговое растворение: `amount`, помноженная на общую степень раскрытия. */
   value: number;
 }
 
@@ -133,7 +153,8 @@ export function createDollhouse(
   const defaultScale = Math.max(fallbackScale, 1e-3);
   const states: FragmentState[] = fragments.map((fragment) => ({
     fragment,
-    facing: false,
+    toward: false,
+    amount: 0,
     value: 0,
   }));
 
@@ -176,14 +197,16 @@ export function createDollhouse(
             ? (state.fragment.normal.x * toCamera.x + state.fragment.normal.z * toCamera.z) /
               horizontal
             : 0;
-        state.facing = state.facing ? cos > FACING_EXIT : cos > FACING_ENTER;
-        state.value = state.facing
-          ? quantize(openness * MathUtils.smoothstep(cos, FACING_EXIT, FACING_FULL))
+        state.toward = state.toward ? cos > FACING_EXIT : cos > FACING_ENTER;
+        state.amount = state.toward
+          ? quantize(MathUtils.smoothstep(cos, FACING_EXIT, FACING_FULL))
           : 0;
+        state.value = quantize(openness * state.amount);
       }
     },
     openness: () => openness,
     dissolve: (index: number) => states[index]?.value ?? 0,
+    facing: (index: number) => states[index]?.amount ?? 0,
     roofLift: () => roofLift,
   };
 }

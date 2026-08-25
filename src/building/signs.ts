@@ -13,7 +13,7 @@ import {
   SRGBColorSpace,
 } from 'three';
 import type { Object3D } from 'three';
-import type { SignPart } from '@building/source';
+import type { SignPart, Side } from '@building/source';
 
 /**
  * Предел ширины текстуры: одна строка не должна стоить мегабайт. При 2048
@@ -23,6 +23,20 @@ import type { SignPart } from '@building/source';
 const MAX_TEXTURE_WIDTH = 1024;
 const MAX_TEXTURE_HEIGHT = 128;
 const FONT = 'Arial, Helvetica, sans-serif';
+
+/**
+ * Поворот плоскости вокруг вертикали, радианы. `PlaneGeometry` смотрит в `+Z`,
+ * то есть на юг: это единственная сторона, которую не надо разворачивать.
+ * Без поворота вывеска на северной, восточной или западной стене легла бы
+ * плашмя поперёк здания — дефект был не виден только потому, что процедурный
+ * источник выпускал вывески на одной-единственной грани.
+ */
+const SIDE_ROTATION: Record<Side, number> = {
+  south: 0,
+  north: Math.PI,
+  east: Math.PI / 2,
+  west: -Math.PI / 2,
+};
 
 interface CachedSign {
   texture: CanvasTexture;
@@ -76,6 +90,7 @@ export class SignFactory {
     const mesh = new Mesh(geometry, entry.material);
     mesh.name = spec.name;
     mesh.position.set(spec.center.x, spec.center.y, spec.center.z);
+    mesh.rotation.y = SIDE_ROTATION[spec.side];
     target.add(mesh);
     this.created.push(mesh);
     return mesh;

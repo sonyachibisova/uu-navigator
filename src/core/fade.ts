@@ -168,13 +168,12 @@ export class FadeRegistry {
     const opaque = t >= 1 - EPS;
     const gone = t <= EPS;
 
-    unit.object.visible = !gone;
-    // Тень от полупрозрачного меша выглядит как тень от сплошного — на время
-    // перехода её снимаем, как это делал прототип.
-    unit.object.castShadow = unit.castShadow && opaque;
-
-    if (gone) return;
-
+    // Материалы досчитываются всегда, в том числе при полном растворении, и
+    // только потом меш гасится. Обратный порядок оставлял бы растворённый меш
+    // с `transparent === false` и `opacity === 1`, если канал увели в ноль одним
+    // шагом (`setChannelImmediate`): видно его не было, но `Raycaster` не
+    // смотрит на `visible`, и такая стена продолжала бы ловить луч и закрывать
+    // помещение от курсора.
     const transition = !opaque;
     if (transition !== unit.inTransition) {
       unit.inTransition = transition;
@@ -193,5 +192,10 @@ export class FadeRegistry {
       }
       material.opacity = opaque ? record.baseOpacity : t * record.baseOpacity;
     }
+
+    unit.object.visible = !gone;
+    // Тень от полупрозрачного меша выглядит как тень от сплошного — на время
+    // перехода её снимаем, как это делал прототип.
+    unit.object.castShadow = unit.castShadow && opaque;
   }
 }

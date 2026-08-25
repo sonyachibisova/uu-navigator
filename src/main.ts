@@ -134,10 +134,12 @@ function main(): void {
     building.applyState(next);
     // Кнопка «корпус целиком» возвращает и состояние, и ракурс: она снимает
     // выбранный этаж, помещение и подсветку разом, и это её единственный признак.
+    // Признак опирается только на срез по этажу: снятие выбранного помещения
+    // само по себе ракурс не трогает. Иначе клик по пустому месту в общем виде,
+    // где помещения теперь кликаются, отбрасывал бы камеру к стартовой рамке.
     const cleared =
       next.mode === 'whole' && next.activeFloor === null && next.selectedRoomId === null;
-    const hadSomething =
-      prev.mode !== 'whole' || prev.activeFloor !== null || prev.selectedRoomId !== null;
+    const hadSomething = prev.mode !== 'whole' || prev.activeFloor !== null;
     if (cleared && hadSomething) cameraHandle.home();
   });
 

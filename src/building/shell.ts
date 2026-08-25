@@ -51,27 +51,12 @@ function channelOf(level: number, side: Side): string {
   return `band.${String(level).padStart(2, '0')}.${side}`;
 }
 
-/** Середина набора элементов. */
-function centerOfParts(parts: readonly Part[], out: Vector3): Vector3 {
-  out.set(0, 0, 0);
-  if (parts.length === 0) return out;
-  for (const part of parts) {
-    out.x += part.center.x;
-    out.y += part.center.y;
-    out.z += part.center.z;
-  }
-  return out.divideScalar(parts.length);
-}
-
 /** Копилка одной грани кольца: центр набирается по мере добавления элементов. */
 interface FaceAccumulator {
   side: Side;
   channel: string;
   sum: Vector3;
   count: number;
-  /** Плоскость несущей стены: по ней вывеска находит свою грань. */
-  plane: Vector3;
-  planeKnown: boolean;
 }
 
 export function createShell(
@@ -88,7 +73,6 @@ export function createShell(
   const signs = new SignFactory();
   const signMeshes: Mesh[] = [];
   const fragments: ShellFragment[] = [];
-  const scratch = new Vector3();
 
   for (const band of bands) {
     const shellBand = new Group();
@@ -108,8 +92,6 @@ export function createShell(
           channel: channelOf(band.level, side),
           sum: new Vector3(),
           count: 0,
-          plane: new Vector3(),
-          planeKnown: false,
         };
         faces.set(side, accumulator);
       }
@@ -135,25 +117,21 @@ export function createShell(
       for (const part of parts) collect(accumulator, part.center);
     };
 
-    for (const face of band.shell) {
-      build(shellBand, face.name, face.parts, face.side);
-      const accumulator = accumulatorOf(face.side);
-      accumulator.plane.copy(centerOfParts(face.parts, scratch));
-      accumulator.planeKnown = face.parts.length > 0;
-    }
+    for (const face of band.shell) build(shellBand, face.name, face.parts, face.side);
     for (const face of band.facade) build(facadeBand, face.name, face.parts, face.side);
 
     for (const sign of band.signs) {
-      // Вывеска принадлежит той стене, к плоскости которой она ближе. Так она
-      // растворяется вместе со своей стеной на любом здании: сторона выводится
-      // из геометрии, а не назначается вручную под конкретный фасад.
-      const accumulator = nearestFace(sign.center, faces);
+      // Вывеска принадлежит той грани, которую назвал источник: по ней же её
+      // плоскость разворачивается наружу. Грани в кольце нет — вывеска не
+      // создаётся вовсе. Иначе меш попадал бы в сцену мимо `FadeRegistry`,
+      // с общим кэшированным материалом и без канала растворения: он остался бы
+      // висеть в воздухе после того, как его стена уже растворилась.
+      const accumulator = faces.get(sign.side);
+      if (!accumulator) continue;
       const mesh = signs.create(sign, facadeBand);
       signMeshes.push(mesh);
-      if (accumulator) {
-        fade.add(mesh, accumulator.channel);
-        collect(accumulator, sign.center);
-      }
+      fade.add(mesh, accumulator.channel);
+      collect(accumulator, sign.center);
     }
 
     for (const accumulator of faces.values()) {
@@ -185,25 +163,4 @@ export function createShell(
       facadeGroup.clear();
     },
   };
-}
-
-/** Грань, к плоскости которой точка ближе всего. */
-function nearestFace(
-  point: Vec3,
-  faces: ReadonlyMap<Side, FaceAccumulator>,
-): FaceAccumulator | undefined {
-  let best: FaceAccumulator | undefined;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const accumulator of faces.values()) {
-    if (!accumulator.planeKnown) continue;
-    const normal = SIDE_NORMAL[accumulator.side];
-    const distance = Math.abs(
-      (point.x - accumulator.plane.x) * normal[0] + (point.z - accumulator.plane.z) * normal[1],
-    );
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = accumulator;
-    }
-  }
-  return best;
 }
