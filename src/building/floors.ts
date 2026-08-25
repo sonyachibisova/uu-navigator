@@ -50,9 +50,16 @@ export interface FloorsHandle {
    * Расставить состояния этажей. `active` — выбранный этаж (`null` — здание
    * целиком), `isolate` — явный режим «показать только выбранный».
    * `immediate` применяет состояние без анимации: стартовый кадр не должен
-   * начинаться с полусекундного растворения.
+   * начинаться с полусекундного растворения. `openness` — степень раскрытия
+   * кукольного дома: в режиме «здание целиком» интерьеры проявляются вместе
+   * с растворением оболочки и других хозяев у их прозрачности нет.
    */
-  setStates: (active: number | null, isolate: boolean, immediate?: boolean) => void;
+  setStates: (
+    active: number | null,
+    isolate: boolean,
+    immediate?: boolean,
+    openness?: number,
+  ) => void;
   /** Подсветить помещения: под курсором и выбранное. */
   highlight: (hoveredId: string | null, selectedId: string | null) => void;
   dispose: () => void;
@@ -195,13 +202,19 @@ export function createFloors(
     }
   }
 
-  function setStates(active: number | null, isolate: boolean, immediate = false): void {
+  function setStates(
+    active: number | null,
+    isolate: boolean,
+    immediate = false,
+    openness = 0,
+  ): void {
     for (const layer of layers) {
       if (!layer.layoutKnown) continue;
       let target: number;
       if (active === null) {
-        // Здание целиком: оболочка непрозрачна, интерьер за ней всё равно не виден.
-        target = 0;
+        // Здание целиком: пока оболочка цела, интерьер за ней всё равно не виден,
+        // а по мере раскрытия кукольного дома он проявляется вместе с ней.
+        target = openness;
       } else if (layer.level === active) {
         target = 1;
       } else if (isolate || layer.level > active) {
@@ -211,10 +224,11 @@ export function createFloors(
         target = DIMMED;
       }
 
-      if (target > 0) ensureLabels(layer);
-      // Подписи читаются только на выбранном этаже: на приглушённом они
-      // превращаются в шум и стоят по draw call каждая.
+      // Подписи читаются только на выбранном этаже: на приглушённом и в
+      // раскрытом здании целиком они превращаются в шум и стоят по draw call
+      // каждая. Поэтому и создаются они только для выбранного этажа.
       const labelTarget = layer.level === active ? 1 : 0;
+      if (labelTarget > 0) ensureLabels(layer);
 
       if (immediate) {
         fade.setChannelImmediate(layer.channel, target);

@@ -41,7 +41,6 @@ export type SurfaceKey =
   // внутренние
   | 'slab'
   | 'partition'
-  | 'column'
   | 'door'
   | 'corridor'
   | 'lift'

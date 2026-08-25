@@ -11,6 +11,7 @@
  */
 import { MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { prefersReducedMotion } from '@core/motion';
 
 /** Габарит, от которого считаются все расстояния камеры. */
 export interface CameraFrame {
@@ -42,8 +43,16 @@ const FRAME_MARGIN = 1.08;
 const TARGET_HEIGHT = 0.5;
 /** Скорость подвода точки интереса: λ ≈ 3.7 повторяет прежнее ощущение на 60 кадрах. */
 const TARGET_LAMBDA = 3.7;
-/** Скорость возврата к стартовой рамке. */
-const HOME_LAMBDA = 4.2;
+/** Скорость перелёта камеры: возврат к стартовой рамке и подлёт к зданию. */
+const FLIGHT_LAMBDA = 4.2;
+/**
+ * Подлёт «заглянуть внутрь»: подъём над горизонтом в градусах и расстояние в
+ * долях дистанции обзора. Доля взята заведомо меньше порога полного раскрытия
+ * из `src/core/dollhouse.ts`, чтобы кукольный дом раскрылся сам, от близости
+ * камеры, а не по отдельной команде.
+ */
+const REVEAL_ELEVATION = 40;
+const REVEAL_DISTANCE_FACTOR = 0.52;
 /** Ниже горизонта камера не опускается: под землёй смотреть не на что. */
 const MAX_POLAR = MathUtils.degToRad(85);
 /** Ближняя и дальняя плоскости в долях габарита. */
@@ -66,6 +75,18 @@ export interface CameraHandle {
   lookAt: (point: Vector3) => void;
   /** Вернуть камеру и точку интереса к стартовой рамке с анимацией. */
   home: () => void;
+  /**
+   * Подлететь к зданию с анимацией, сохранив выбранный человеком поворот в
+   * плане. Механику раскрытия камера не трогает: она только подходит ближе.
+   */
+  approach: () => void;
+  /**
+   * Дистанция обзора: расстояние, с которого габарит здания целиком помещается
+   * в кадр. Это опорная длина для всего, что меряет близость камеры, — она
+   * считается из габарита здания и текущего кадра и пересчитывается при
+   * изменении соотношения сторон.
+   */
+  overviewDistance: () => number;
   dispose: () => void;
 }
 
@@ -138,6 +159,10 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
   const half = new Vector3(frame.width / 2, frame.height / 2, frame.depth / 2);
   const homeTarget = new Vector3(frame.center.x, frame.height * TARGET_HEIGHT, frame.center.z);
   const homePosition = new Vector3();
+  /** Куда летим сейчас: стартовая рамка или точка подлёта. */
+  const flightPosition = new Vector3();
+  /** Дистанция обзора при текущем соотношении сторон. */
+  let overview = 0;
 
   const controls = new OrbitControls(camera, domElement);
   controls.enableDamping = true;
@@ -167,6 +192,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
     const portrait = camera.aspect < PORTRAIT_ASPECT;
     const direction = directionOf(portrait ? PORTRAIT_VIEW : LANDSCAPE_VIEW);
     const distance = frameDistance(direction, half, FOV, camera.aspect);
+    overview = distance;
     homePosition.copy(direction).multiplyScalar(distance).add(homeTarget);
     controls.maxDistance = Math.max(frame.radius * MAX_DISTANCE_FACTOR, distance * 1.6);
     const far = Math.max(frame.radius * FAR_FACTOR, distance * 3);
@@ -182,18 +208,34 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
 
   const goal = homeTarget.clone();
   const shift = new Vector3();
+  const offset = new Vector3();
+  /** Человек попросил без анимации: перелёты применяются сразу, результат тот же. */
+  const instant = prefersReducedMotion();
   let lastAspect = camera.aspect;
   /** Трогал ли человек камеру: до первого касания рамка вправе двигать камеру сама. */
   let touched = false;
-  /** Идёт ли возврат к стартовой рамке. */
-  let homing = false;
+  /** Идёт ли перелёт камеры. */
+  let flying = false;
   /** Ведём ли точку интереса к цели (клик по помещению или возврат). */
   let focusing = false;
+
+  /** Начать перелёт к `flightPosition` и подвод точки интереса к `goal`. */
+  function startFlight(): void {
+    if (instant) {
+      camera.position.copy(flightPosition);
+      controls.target.copy(goal);
+      flying = false;
+      focusing = false;
+      return;
+    }
+    flying = true;
+    focusing = true;
+  }
 
   function onUserInput(): void {
     touched = true;
     // Ввод человека всегда главнее анимации: он не должен бороться с камерой.
-    homing = false;
+    flying = false;
     focusing = false;
   }
   controls.addEventListener('start', onUserInput);
@@ -214,11 +256,11 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
         }
       }
 
-      if (homing) {
-        dampVector(camera.position, homePosition, HOME_LAMBDA, dt);
-        if (camera.position.distanceToSquared(homePosition) < SETTLED * SETTLED) {
-          camera.position.copy(homePosition);
-          homing = false;
+      if (flying) {
+        dampVector(camera.position, flightPosition, FLIGHT_LAMBDA, dt);
+        if (camera.position.distanceToSquared(flightPosition) < SETTLED * SETTLED) {
+          camera.position.copy(flightPosition);
+          flying = false;
         }
       }
 
@@ -242,14 +284,42 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
     lookAt(point: Vector3): void {
       goal.copy(point);
       clampTarget(goal);
+      if (instant) {
+        controls.target.copy(goal);
+        focusing = false;
+        return;
+      }
       focusing = true;
     },
     home(): void {
       updateHomeFrame();
+      flightPosition.copy(homePosition);
       goal.copy(homeTarget);
-      homing = true;
-      focusing = true;
+      startFlight();
     },
+    approach(): void {
+      updateHomeFrame();
+      // Поворот в плане человек уже выбрал сам — подлёт его сохраняет и меняет
+      // только подъём и расстояние. Иначе здание на глазах «перескакивает»
+      // на другую сторону, и человек теряет, куда смотрел.
+      offset.subVectors(camera.position, controls.target);
+      const azimuth = Math.atan2(offset.x, offset.z);
+      const elevation = MathUtils.degToRad(REVEAL_ELEVATION);
+      const flat = Math.cos(elevation);
+      const distance = MathUtils.clamp(
+        overview * REVEAL_DISTANCE_FACTOR,
+        controls.minDistance * 1.2,
+        controls.maxDistance * 0.9,
+      );
+      flightPosition
+        .set(Math.sin(azimuth) * flat, Math.sin(elevation), Math.cos(azimuth) * flat)
+        .multiplyScalar(distance)
+        .add(homeTarget);
+      goal.copy(homeTarget);
+      touched = true;
+      startFlight();
+    },
+    overviewDistance: () => overview,
     dispose(): void {
       controls.removeEventListener('start', onUserInput);
       controls.dispose();

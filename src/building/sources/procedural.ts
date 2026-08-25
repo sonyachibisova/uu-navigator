@@ -132,7 +132,7 @@ export class ProceduralSource implements BuildingSource {
 
   floors(): FloorView[] {
     this.floorsCache ??= this.floorData.map((floor) =>
-      buildFloorView(floor, this.passport.footprint, this.passport.floorHeight, this.profile),
+      buildFloorView(floor, this.passport.footprint, this.passport.floorHeight),
     );
     return this.floorsCache;
   }

@@ -146,7 +146,20 @@ function main(): void {
   // начинаться с растворения верхних колец на глазах.
   building.applyState(store.state, true);
 
-  const ui = createUi(overlayRoot, store, building);
+  const ui = createUi(overlayRoot, store, building, {
+    // Кнопка «заглянуть внутрь» только подводит камеру. Раскрытие здания —
+    // следствие близости камеры, а не отдельная команда сцене.
+    reveal(): void {
+      store.set({ mode: 'whole', activeFloor: null, selectedRoomId: null, hoveredRoomId: null });
+      cameraHandle.approach();
+    },
+    // Возврат ракурса — часть действия кнопки, а не следствие смены состояния:
+    // после подлёта состояние уже «здание целиком», меняться в нём нечему,
+    // а камера обязана отъехать — иначе здание останется раскрытым.
+    home(): void {
+      cameraHandle.home();
+    },
+  });
   const interaction = createInteraction({
     canvas: rendererHandle.renderer.domElement,
     camera: cameraHandle.camera,
@@ -163,7 +176,9 @@ function main(): void {
     cameraHandle.update(dt);
     // Тень пересчитывается только когда что-то менялось: солнце и геометрия
     // статичны, поэтому в установившемся кадре теневого прохода нет вовсе.
-    if (building.update(dt)) environment.requestShadowUpdate();
+    if (building.update(dt, cameraHandle.camera.position, cameraHandle.overviewDistance())) {
+      environment.requestShadowUpdate();
+    }
     debug?.beforeFrame();
     rendererHandle.renderer.render(scene, cameraHandle.camera);
     debug?.afterFrame();

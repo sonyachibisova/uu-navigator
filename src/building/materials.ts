@@ -113,7 +113,6 @@ export function createPalette(): Palette {
     trim: new MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.7 }),
     slab: new MeshStandardMaterial({ color: 0xb8b6b0, roughness: 0.9 }),
     partition: new MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.9 }),
-    column: new MeshStandardMaterial({ color: 0xa9a7a1, roughness: 0.85 }),
     door: new MeshStandardMaterial({ color: 0xb0703a, roughness: 0.7 }),
     corridor: new MeshStandardMaterial({ color: 0xeae6dc, roughness: 0.95 }),
     lift: new MeshStandardMaterial({ color: 0xe6c05c, roughness: 0.5, metalness: 0.3 }),

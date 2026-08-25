@@ -86,6 +86,13 @@ const STYLE = `
 #ui-floors .note { max-width: 160px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.62);
   color: #fff; font-size: 11px; line-height: 1.3; text-align: right; }
 
+/* Главное действие: живёт в том же слоте, что и карточка помещения, и они
+   не встречаются — кнопка видна, только пока не выбран этаж. */
+#ui-reveal { position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
+  bottom: calc(var(--gap-b) + 54px); height: 46px; padding: 0 20px; border: 0; border-radius: 23px;
+  background: #2c7a2c; color: #fff; font: 600 15px system-ui, sans-serif; cursor: pointer;
+  box-shadow: 0 6px 22px rgba(0,0,0,.32); }
+
 #ui-legend { position: absolute; z-index: 4; left: var(--gap-l); bottom: var(--gap-b);
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 #ui-legend .toggle { height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
@@ -117,6 +124,18 @@ export interface UiHandle {
   dispose: () => void;
 }
 
+/** Действия, которые интерфейс просит выполнить у камеры: сцену он не трогает. */
+export interface UiActions {
+  /**
+   * Подвести камеру к зданию. Кукольный дом раскрывается сам, от близости
+   * камеры: человеку, открывшему ссылку в холле, не нужно догадываться,
+   * что модель надо приближать пальцами.
+   */
+  reveal: () => void;
+  /** Вернуть камеру к общему виду. */
+  home: () => void;
+}
+
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
 function strong(text: string): HTMLElement {
   const element = document.createElement('b');
@@ -128,6 +147,7 @@ export function createUi(
   root: HTMLElement,
   store: Store<SceneState>,
   building: BuildingHandle,
+  actions: UiActions,
 ): UiHandle {
   const style = document.createElement('style');
   style.textContent = STYLE;
@@ -155,11 +175,13 @@ export function createUi(
     );
   } else {
     hintText.append('Нажми ');
+    hintText.append(strong('«Заглянуть внутрь»'));
+    hintText.append(' — подлечу к зданию, и оно раскроется само. Кнопки ');
     known.forEach((floor, index) => {
-      if (index > 0) hintText.append(index === known.length - 1 ? ' или ' : ', ');
+      if (index > 0) hintText.append(index === known.length - 1 ? ' и ' : ', ');
       hintText.append(strong(String(floor.level)));
     });
-    hintText.append(' справа — покажу этаж изнутри. Коснись помещения — покажу название. ');
+    hintText.append(' справа покажут этаж изнутри, ');
     hintText.append(strong('⌂'));
     hintText.append(' вернёт здание целиком.');
   }
@@ -205,6 +227,20 @@ export function createUi(
   cardWhere.className = 'where';
   card.append(cardTitle, cardWhere);
   container.appendChild(card);
+
+  /* ---------- главное действие: подлёт камеры ---------- */
+
+  const revealButton = document.createElement('button');
+  revealButton.id = 'ui-reveal';
+  revealButton.type = 'button';
+  revealButton.textContent = 'Заглянуть внутрь';
+  revealButton.setAttribute('aria-label', 'Подлететь к зданию и заглянуть внутрь');
+  revealButton.addEventListener('click', () => {
+    dismissHint();
+    closeLegend();
+    actions.reveal();
+  });
+  container.appendChild(revealButton);
 
   /* ---------- панель этажей ---------- */
 
@@ -254,6 +290,10 @@ export function createUi(
   homeButton.addEventListener('click', () => {
     dismissHint();
     store.set({ mode: 'whole', activeFloor: null, selectedRoomId: null, hoveredRoomId: null });
+    // Состояние могло и не измениться — например, после подлёта к зданию оно
+    // и так «здание целиком». Ракурс всё равно возвращаем: раскрытие держится
+    // на близости камеры, и свернуть его может только отъезд.
+    actions.home();
   });
   row.appendChild(homeButton);
 
@@ -340,6 +380,8 @@ export function createUi(
     if (floorKey !== shownFloorKey) {
       shownFloorKey = floorKey;
       const whole = state.mode === 'whole';
+      // Выбран этаж — здание уже раскрыто срезом, и звать внутрь больше некуда.
+      revealButton.hidden = !whole;
       homeButton.classList.toggle('on', whole);
       homeButton.setAttribute('aria-pressed', whole ? 'true' : 'false');
       for (const item of floorButtons) {

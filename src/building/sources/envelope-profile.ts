@@ -121,18 +121,6 @@ export const EnvelopeProfileSchema = z
         ),
       })
       .strict(),
-    columns: z
-      .object({
-        /** Число осей вдоль длинной стороны. */
-        count: z.number().int().positive(),
-        /** Доля длины здания от центра до крайней оси. */
-        span: frac(),
-        /** Поперечные оси, доли глубины от центра. */
-        cross: z.array(frac()),
-        width: positive(),
-        depth: positive(),
-      })
-      .strict(),
   })
   .strict();
 
@@ -172,12 +160,5 @@ export const DEFAULT_ENVELOPE_PROFILE: EnvelopeProfile = {
     parapetHeight: 1,
     parapetMargin: 0.5,
     structures: [{ width: 0.076, depth: 0.251, height: 2.2, center: -0.079, offset: -0.1 }],
-  },
-  columns: {
-    count: 18,
-    span: 0.4919,
-    cross: [0.476, 0.1615, -0.1615, -0.476],
-    width: 0.35,
-    depth: 0.55,
   },
 };

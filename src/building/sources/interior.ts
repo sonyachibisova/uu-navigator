@@ -1,5 +1,5 @@
 /**
- * Интерьер этажа из данных: плита, колонны, коридорные полосы, помещения,
+ * Интерьер этажа из данных: плита перекрытия, коридорные полосы, помещения,
  * двери и вертикальные связи.
  *
  * Модуль — интерпретатор данных, а не описание конкретной планировки: он не
@@ -17,7 +17,6 @@ import type {
   Vec3,
   VerticalView,
 } from '@building/source';
-import type { EnvelopeProfile } from '@building/sources/envelope-profile';
 import { levelTag } from '@building/sources/envelope';
 
 /** Пропорции интерьера, снятые с прототипа. Это размеры человека, не здания. */
@@ -63,7 +62,7 @@ interface FloorFrame {
 /**
  * Элемент интерьера. Тень по умолчанию снята: солнце снаружи кладёт длинные
  * тени перегородок поперёк плит этажа и портит именно то, ради чего этаж
- * открывают. Тень оставлена только несущему — плите перекрытия и колоннам.
+ * открывают. Тень оставлена только несущему — плите перекрытия.
  */
 function box(
   name: string,
@@ -362,11 +361,15 @@ function verticalView(frame: FloorFrame, link: VerticalLink, tag: string): Verti
 }
 
 /**
- * Постоянные элементы этажа: плита перекрытия и сетка колонн по конструктивным
- * осям. Сетка приходит профилем, а не зашита числами конкретного здания.
+ * Постоянные элементы этажа. Сейчас это только плита перекрытия.
+ *
+ * Несущих опор здесь нет намеренно: их положение снимается с чертежа и
+ * приходит готовой геометрией вместе с моделью здания. Параметрическая сетка,
+ * подобранная по пропорциям, часть опор ставит в стены, а часть — посреди
+ * помещений, то есть показывает человеку то, чего в здании нет.
  */
-function structureParts(frame: FloorFrame, profile: EnvelopeProfile, tag: string): Part[] {
-  const parts: Part[] = [
+function structureParts(frame: FloorFrame, tag: string): Part[] {
+  return [
     box(
       `floor.${tag}.slab`,
       'slab',
@@ -377,31 +380,6 @@ function structureParts(frame: FloorFrame, profile: EnvelopeProfile, tag: string
       true,
     ),
   ];
-  const { count, span, cross, width, depth } = profile.columns;
-  const step = count > 1 ? (2 * span * frame.width) / (count - 1) : 0;
-  const first = frame.cx - span * frame.width;
-  for (let i = 0; i < count; i += 1) {
-    for (let j = 0; j < cross.length; j += 1) {
-      const line = cross[j];
-      if (line === undefined) continue;
-      parts.push(
-        box(
-          `floor.${tag}.column.${String(i + 1).padStart(2, '0')}.${String(j + 1).padStart(2, '0')}`,
-          'column',
-          width,
-          frame.wallHeight,
-          depth,
-          {
-            x: first + i * step,
-            y: frame.base + INTERIOR.floorLevel + frame.wallHeight / 2,
-            z: frame.cz + line * frame.depth,
-          },
-          true,
-        ),
-      );
-    }
-  }
-  return parts;
 }
 
 function corridorView(
@@ -430,12 +408,7 @@ function corridorView(
 }
 
 /** Собрать этаж целиком. Для этажа с неизвестной планировкой вернётся пустой набор. */
-export function buildFloorView(
-  floor: Floor,
-  footprint: Bounds,
-  floorHeight: number,
-  profile: EnvelopeProfile,
-): FloorView {
+export function buildFloorView(floor: Floor, footprint: Bounds, floorHeight: number): FloorView {
   const tag = levelTag(floor.level);
   const frame: FloorFrame = {
     x0: footprint.x0,
@@ -471,7 +444,7 @@ export function buildFloorView(
     elevation: floor.elevation,
     height: floor.height,
     layoutKnown: true,
-    parts: structureParts(frame, profile, tag),
+    parts: structureParts(frame, tag),
     rooms: floor.rooms.map((room) => roomView(frame, room, tag)),
     corridors: floor.corridors.map((corridor) => corridorView(frame, corridor, tag)),
     vertical: floor.vertical.map((link) => verticalView(frame, link, tag)),

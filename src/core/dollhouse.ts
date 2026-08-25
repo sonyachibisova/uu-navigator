@@ -1,0 +1,189 @@
+/**
+ * Кукольный дом: насколько здание раскрыто и какие его фрагменты растворены.
+ *
+ * Модуль ничего не рисует и ничего не знает ни про сцену, ни про материалы.
+ * Он отвечает на три вопроса по положению камеры: насколько здание вообще
+ * раскрыто (одна нормализованная величина `t ∈ [0,1]`), насколько растворён
+ * каждый фрагмент оболочки и насколько ушла кровля. Прозрачность из этих
+ * величин собирает сборка здания и отдаёт в `FadeRegistry` — второго механизма,
+ * пишущего в `opacity`, в движке нет.
+ *
+ * Правила, которые здесь выполняются (инварианты 4 и 6 правил проекта):
+ *
+ *  — расстояние нормируется, а не меряется в метрах: движок обслуживает здания
+ *    разного размера, и «двадцать метров» для павильона и для стометрового
+ *    корпуса — разные вещи. Опорная длина — дистанция обзора, то есть
+ *    расстояние, с которого габарит здания целиком помещается в кадр. Это та же
+ *    нормировка габаритом, только учитывающая ещё и кадр, и учитывать его
+ *    обязательно: на телефоне в портрете тот же корпус виден целиком со ста
+ *    восьмидесяти метров, а на широком мониторе — с семидесяти, и «камера
+ *    подошла близко» в этих двух случаях означает разные метры;
+ *  — растворяется то, что смотрит на камеру: условие `normal · (camera − center) > 0`
+ *    проверяется для каждого фрагмента отдельно. Привязка к одной точке фокуса
+ *    разваливается, как только камера облетает здание: с задней стороны
+ *    расстояние до точки остаётся большим, и переход не срабатывает вовсе;
+ *  — дальняя стена остаётся: у неё скалярное произведение отрицательно.
+ *    Без этого интерьер повисает в пустоте и перестаёт читаться;
+ *  — кровля управляется отдельной величиной — углом взгляда к горизонту.
+ *    При взгляде сбоку она остаётся, иначе здание теряет силуэт;
+ *  — у каждой границы разные пороги на вход и на выход. Без гистерезиса
+ *    на дрожащем пальце состояние мигает: величина ходит вокруг порога,
+ *    материал каждый кадр входит в переход и выходит из него;
+ *  — сглаживание идёт по времени кадра (`damp`), а не по числу кадров.
+ */
+import { MathUtils, Vector3 } from 'three';
+
+/**
+ * Расстояние от камеры до центра здания в долях дистанции обзора. Единица —
+ * ракурс, с которого здание видно целиком; меньше единицы — человек подошёл
+ * ближе. Ближе `ENTER` раскрытие начинается, дальше `EXIT` — сворачивается,
+ * ближе `FULL` — раскрыто полностью. Порог выхода дальше порога входа:
+ * это и есть гистерезис на границе перехода.
+ */
+const DISTANCE_ENTER = 0.78;
+const DISTANCE_EXIT = 0.86;
+const DISTANCE_FULL = 0.55;
+
+/**
+ * Косинус угла между внешней нормалью фрагмента и горизонтальным направлением
+ * на камеру: насколько грань повёрнута к наблюдателю «в лоб». Пороги те же по
+ * смыслу — вход, выход и полное растворение.
+ */
+const FACING_ENTER = 0.22;
+const FACING_EXIT = 0.1;
+const FACING_FULL = 0.55;
+
+/** Угол взгляда к горизонту, градусы: выше — кровля уходит. */
+const ROOF_ENTER = 26;
+const ROOF_EXIT = 20;
+const ROOF_FULL = 48;
+
+/** Скорость сглаживания степени раскрытия: λ в `damp`. */
+const LAMBDA = 10;
+
+/** Ниже этой длины горизонтальная проекция считается вырожденной (взгляд отвесно вниз). */
+const HORIZONTAL_EPS = 1e-4;
+
+/**
+ * Шаг, до которого округляются выдаваемые величины.
+ *
+ * Сглаживание по времени подходит к цели асимптотически и никогда её не
+ * достигает, а орбитальные контролы гасят вращение так же. Без округления
+ * прозрачность меняется в каждом кадре на неразличимую глазом величину, и
+ * установившегося кадра не существует: каждый кадр считается изменившимся и
+ * тянет за собой пересчёт теневой карты. Шаг взят близким к погрешности,
+ * с которой `FadeRegistry` считает переход завершённым.
+ */
+const STEP = 1 / 256;
+
+/** Округлить до шага: величина перестаёт дрожать, когда движение уже кончилось. */
+function quantize(value: number): number {
+  return Math.round(value / STEP) * STEP;
+}
+
+/** Фрагмент оболочки: то, что растворяется как одно целое. */
+export interface DollhouseFragment {
+  /** Центр фрагмента: середина его элементов. */
+  center: Vector3;
+  /** Внешняя нормаль фрагмента: усреднённая, горизонтальная, единичной длины. */
+  normal: Vector3;
+}
+
+export interface DollhouseHandle {
+  /**
+   * Пересчитать раскрытие по положению камеры.
+   * `dt` — время кадра в секундах, `scale` — дистанция обзора в метрах.
+   */
+  update: (cameraPosition: Vector3, dt: number, scale: number) => void;
+  /** Общая степень раскрытия `t ∈ [0,1]`: 0 — здание собрано, 1 — раскрыто. */
+  openness: () => number;
+  /** Насколько растворён фрагмент по порядковому номеру: 0 — цел, 1 — растворён. */
+  dissolve: (index: number) => number;
+  /** Насколько ушла кровля: 0 — на месте, 1 — снята. */
+  roofLift: () => number;
+}
+
+export interface DollhouseOptions {
+  /**
+   * Применять переход мгновенно, без сглаживания. Так работает
+   * `prefers-reduced-motion`: конечный результат тот же, движения нет.
+   */
+  instant?: boolean;
+}
+
+interface FragmentState {
+  fragment: DollhouseFragment;
+  /** Считаем ли грань обращённой к наблюдателю. Липкий флаг: у него разные пороги. */
+  facing: boolean;
+  value: number;
+}
+
+/**
+ * @param center — центр здания: середина габарита в плане на половине высоты.
+ * @param fallbackScale — опорная длина на случай, если дистанция обзора ещё
+ *   не посчитана: половина наибольшего измерения здания в плане, метры.
+ */
+export function createDollhouse(
+  center: Vector3,
+  fallbackScale: number,
+  fragments: readonly DollhouseFragment[],
+  options: DollhouseOptions = {},
+): DollhouseHandle {
+  const instant = options.instant === true;
+  const defaultScale = Math.max(fallbackScale, 1e-3);
+  const states: FragmentState[] = fragments.map((fragment) => ({
+    fragment,
+    facing: false,
+    value: 0,
+  }));
+
+  const toCamera = new Vector3();
+  let open = false;
+  let openness = 0;
+  let roofOpen = false;
+  let roofLift = 0;
+
+  return {
+    update(cameraPosition: Vector3, dt: number, scale: number): void {
+      const safeScale = scale > 1e-3 ? scale : defaultScale;
+      toCamera.subVectors(cameraPosition, center);
+      const distance = toCamera.length() / safeScale;
+
+      // Здание раскрывается, когда камера подошла ближе порога входа, и
+      // сворачивается только за порогом выхода: между ними состояние держится.
+      open = open ? distance <= DISTANCE_EXIT : distance < DISTANCE_ENTER;
+      const target = open ? 1 - MathUtils.smoothstep(distance, DISTANCE_FULL, DISTANCE_EXIT) : 0;
+      openness = quantize(instant ? target : MathUtils.damp(openness, target, LAMBDA, dt));
+
+      // Кровля — отдельный канал: её ведёт угол взгляда к горизонту, а не близость.
+      const length = toCamera.length();
+      const elevation =
+        length > HORIZONTAL_EPS ? MathUtils.radToDeg(Math.asin(toCamera.y / length)) : 90;
+      roofOpen = roofOpen ? elevation >= ROOF_EXIT : elevation > ROOF_ENTER;
+      roofLift = roofOpen
+        ? quantize(openness * MathUtils.smoothstep(elevation, ROOF_EXIT, ROOF_FULL))
+        : 0;
+
+      for (const state of states) {
+        toCamera.subVectors(cameraPosition, state.fragment.center);
+        // Стены вертикальны, поэтому «в лоб или вскользь» решает горизонтальное
+        // направление на камеру: подъём камеры не должен ослаблять растворение.
+        // Нормаль горизонтальна, поэтому знак этого косинуса совпадает со знаком
+        // полного `normal · (camera − center)` — условия из инварианта.
+        const horizontal = Math.hypot(toCamera.x, toCamera.z);
+        const cos =
+          horizontal > HORIZONTAL_EPS
+            ? (state.fragment.normal.x * toCamera.x + state.fragment.normal.z * toCamera.z) /
+              horizontal
+            : 0;
+        state.facing = state.facing ? cos > FACING_EXIT : cos > FACING_ENTER;
+        state.value = state.facing
+          ? quantize(openness * MathUtils.smoothstep(cos, FACING_EXIT, FACING_FULL))
+          : 0;
+      }
+    },
+    openness: () => openness,
+    dissolve: (index: number) => states[index]?.value ?? 0,
+    roofLift: () => roofLift,
+  };
+}
