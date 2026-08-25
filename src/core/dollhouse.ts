@@ -10,6 +10,13 @@
  *
  * Правила, которые здесь выполняются (инварианты 4 и 6 правил проекта):
  *
+ *  — близость меряется до поверхности габарита, а не до его центра. У длинного
+ *    корпуса это разные вещи: стоя вплотную к торцу стометрового здания,
+ *    человек находится в полусотне метров от центра, и привязка к центру
+ *    не раскрывала бы здание там, где оно занимает весь кадр. К тому же точка
+ *    интереса уезжает с центра при выборе помещения и при панорамировании,
+ *    и тогда простой облёт менял бы расстояние до центра сам по себе —
+ *    оболочка возвращалась бы от одного поворота камеры;
  *  — расстояние нормируется, а не меряется в метрах: движок обслуживает здания
  *    разного размера, и «двадцать метров» для павильона и для стометрового
  *    корпуса — разные вещи. Опорная длина — дистанция обзора, то есть
@@ -52,11 +59,14 @@ export const DISTANCE_FULL = 0.55;
 /**
  * Косинус угла между внешней нормалью фрагмента и горизонтальным направлением
  * на камеру: насколько грань повёрнута к наблюдателю «в лоб». Пороги те же по
- * смыслу — вход, выход и полное растворение.
+ * смыслу — вход, выход и полное растворение. Взяты близко к условию
+ * `normal · (camera − center) > 0` из инварианта 4: грань начинает уходить,
+ * как только вообще повернулась к наблюдателю, и уходит целиком задолго до
+ * взгляда в лоб. Дальняя стена при этом остаётся — у неё косинус отрицателен.
  */
-const FACING_ENTER = 0.22;
-const FACING_EXIT = 0.1;
-const FACING_FULL = 0.55;
+const FACING_ENTER = 0.08;
+const FACING_EXIT = 0.02;
+const FACING_FULL = 0.35;
 
 /** Угол взгляда к горизонту, градусы: выше — кровля уходит. */
 const ROOF_ENTER = 26;
@@ -73,6 +83,29 @@ const LAMBDA = 10;
 
 /** Ниже этой длины горизонтальная проекция считается вырожденной (взгляд отвесно вниз). */
 const HORIZONTAL_EPS = 1e-4;
+
+/**
+ * Расстояние от центра габарита до его поверхности вдоль направления `dir`
+ * (длина `dir` роли не играет). Это половина габарита в том направлении,
+ * куда смотрит камера: вычитая её из расстояния до центра, получаем расстояние
+ * до самого здания.
+ */
+function halfExtentAlong(dir: Vector3, half: Vector3): number {
+  const length = dir.length();
+  if (length < HORIZONTAL_EPS) return 0;
+  let extent = Number.POSITIVE_INFINITY;
+  const axes: readonly [number, number][] = [
+    [Math.abs(dir.x) / length, half.x],
+    [Math.abs(dir.y) / length, half.y],
+    [Math.abs(dir.z) / length, half.z],
+  ];
+  for (const [component, size] of axes) {
+    if (component <= HORIZONTAL_EPS) continue;
+    const limit = size / component;
+    if (limit < extent) extent = limit;
+  }
+  return Number.isFinite(extent) ? extent : 0;
+}
 
 /**
  * Шаг, до которого округляются выдаваемые величины.
@@ -140,11 +173,14 @@ interface FragmentState {
 
 /**
  * @param center — центр здания: середина габарита в плане на половине высоты.
+ * @param half — полуразмеры габарита здания по осям, метры: от них считается
+ *   расстояние до поверхности здания.
  * @param fallbackScale — опорная длина на случай, если дистанция обзора ещё
  *   не посчитана: половина наибольшего измерения здания в плане, метры.
  */
 export function createDollhouse(
   center: Vector3,
+  half: Vector3,
   fallbackScale: number,
   fragments: readonly DollhouseFragment[],
   options: DollhouseOptions = {},
@@ -168,7 +204,13 @@ export function createDollhouse(
     update(cameraPosition: Vector3, dt: number, scale: number): void {
       const safeScale = scale > 1e-3 ? scale : defaultScale;
       toCamera.subVectors(cameraPosition, center);
-      const distance = toCamera.length() / safeScale;
+      // Единица — по-прежнему ракурс, с которого здание видно целиком, но
+      // отсчёт идёт от поверхности габарита: и дистанция обзора, и положение
+      // камеры уменьшаются на одну и ту же половину габарита вдоль взгляда.
+      // На стартовом ракурсе это по-прежнему единица, а вплотную к стене —
+      // ноль, с какой бы стороны человек ни подошёл.
+      const extent = Math.min(halfExtentAlong(toCamera, half), safeScale * 0.9);
+      const distance = Math.max(0, (toCamera.length() - extent) / (safeScale - extent));
 
       // Здание раскрывается, когда камера подошла ближе порога входа, и
       // сворачивается только за порогом выхода: между ними состояние держится.
@@ -198,8 +240,13 @@ export function createDollhouse(
               horizontal
             : 0;
         state.toward = state.toward ? cos > FACING_EXIT : cos > FACING_ENTER;
+        // Рампа считается от порога входа, а не от порога выхода. Иначе грань,
+        // только что признанная обращённой к камере, получает сразу заметную
+        // долю растворения — величина прыгает с нуля, и на дрожащем пальце
+        // фасад щёлкает туда-обратно. От порога входа обе границы непрерывны:
+        // на входе рампа даёт ноль, ниже порога выхода — тоже ноль.
         state.amount = state.toward
-          ? quantize(MathUtils.smoothstep(cos, FACING_EXIT, FACING_FULL))
+          ? quantize(MathUtils.smoothstep(cos, FACING_ENTER, FACING_FULL))
           : 0;
         state.value = quantize(openness * state.amount);
       }

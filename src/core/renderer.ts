@@ -16,6 +16,21 @@ const MAX_PIXEL_RATIO = 1.5;
 const FALLBACK_PIXEL_RATIO = 1;
 /** Ниже этого FPS кадр считается провальным (бюджет проекта). */
 const FPS_FLOOR = 45;
+/**
+ * Доля от того, что экран вообще способен дать. Частоту кадра ограничивает не
+ * только сцена: телефон в режиме энергосбережения режет экран до 30 Гц, и
+ * сравнивать в этом случае с 45 бессмысленно — навигатор снял бы тени и
+ * плотность пикселей на исправном кадре, просто потому что человек экономит
+ * батарею. Провальным считается кадр, заметно отставший от достижимого.
+ */
+const FLOOR_RATIO = 0.75;
+/**
+ * Абсолютный низ: хуже этого кадр плох на любом экране. Нужен потому, что
+ * потолок экрана оценивается по лучшему показанному кадру, а сцена, которая
+ * ни разу не шла быстро, оценку занижает — без этого числа устройство, где
+ * всё плохо всегда, аварийного режима не дождалось бы вовсе.
+ */
+const HARD_FLOOR = 24;
 /** Сколько секунд подряд нужно продержаться ниже порога, чтобы понизить качество. */
 const SLOW_SECONDS = 3;
 
@@ -57,6 +72,8 @@ export function createRenderer(container: HTMLElement, camera: PerspectiveCamera
 
   let degraded = false;
   let slowFor = 0;
+  /** Лучшая частота кадра, которую экран показал: оценка его потолка. */
+  let bestFps = 0;
 
   function resize(): void {
     const width = container.clientWidth || window.innerWidth;
@@ -76,9 +93,14 @@ export function createRenderer(container: HTMLElement, camera: PerspectiveCamera
     resize,
     sampleFrame(dt: number): boolean {
       if (degraded || dt <= 0) return false;
+      const fps = 1 / dt;
+      if (fps > bestFps) bestFps = fps;
+      // Порог — минимум из бюджета и доли от достижимого на этом экране.
+      // На экране 30 Гц порогом становится 22, а не 45.
+      const floor = Math.max(HARD_FLOOR, Math.min(FPS_FLOOR, bestFps * FLOOR_RATIO));
       // Одиночные провалы (загрузка текстуры, смена этажа) не считаются: нужен
       // устойчивый провал в течение нескольких секунд подряд.
-      if (1 / dt < FPS_FLOOR) slowFor += dt;
+      if (fps < floor) slowFor += dt;
       else slowFor = 0;
       if (slowFor < SLOW_SECONDS) return false;
       degraded = true;

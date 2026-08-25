@@ -122,6 +122,8 @@ export function initDebugOverlay(renderer?: WebGLRenderer): DebugOverlayHandle |
   let frameCount = 0;
   let windowStart = performance.now();
   let fps = 0;
+  /** Лучший показанный FPS: оценка потолка экрана (энергосбережение режет до 30). */
+  let bestFps = 0;
 
   // Вес загруженных ресурсов — из Resource Timing API, не требует рендерера.
   let resourcesBytes = 0;
@@ -155,6 +157,7 @@ export function initDebugOverlay(renderer?: WebGLRenderer): DebugOverlayHandle |
     const elapsed = now - windowStart;
     if (elapsed >= 1000) {
       fps = (frameCount * 1000) / elapsed;
+      if (fps > bestFps) bestFps = fps;
       frameCount = 0;
       windowStart = now;
       render();
@@ -165,14 +168,19 @@ export function initDebugOverlay(renderer?: WebGLRenderer): DebugOverlayHandle |
   function render(): void {
     const rows: string[] = [];
 
+    // Потолок экрана бывает ниже бюджета: телефон в энергосбережении держит
+    // 30 Гц, и красная строка «30 при ≥ 45» говорит про батарею, а не про сцену.
+    // Порог тревоги тот же, что у аварийного режима в `@core/renderer`.
+    const capped = bestFps > 0 && bestFps < BUDGET.fps - 5;
+    const floor = Math.max(24, Math.min(BUDGET.fps, bestFps * 0.75));
     rows.push(
-      renderRow(
-        'FPS',
-        fps > 0 ? fps.toFixed(0) : '…',
-        `≥ ${BUDGET.fps}`,
-        fps > 0 && fps < BUDGET.fps,
-      ),
+      renderRow('FPS', fps > 0 ? fps.toFixed(0) : '…', `≥ ${BUDGET.fps}`, fps > 0 && fps < floor),
     );
+    if (capped) {
+      // Строка появляется только когда экран не даёт бюджетной частоты:
+      // на ней видно, что мерить производительность сцены сейчас бесполезно.
+      rows.push(renderRow('потолок экрана', bestFps.toFixed(0), '—', false));
+    }
 
     if (currentRenderer) {
       const info = currentRenderer.info;
@@ -250,7 +258,13 @@ export function initDebugOverlay(renderer?: WebGLRenderer): DebugOverlayHandle |
         lastShadowProbe = now;
         currentRenderer.shadowMap.needsUpdate = true;
       }
-      measuringShadow = currentRenderer.shadowMap.needsUpdate;
+      // Признак «этот кадр меряет тень» снимается с обоих замков. При снятых
+      // тенях `WebGLShadowMap` выходит сразу и `needsUpdate` не сбрасывает
+      // никогда: без проверки `enabled` каждый кадр считался бы теневым, а
+      // строка draw calls замерзала бы на значении, снятом до аварийного
+      // режима, — ровно тот дефект, из-за которого панель показывала одно и
+      // то же число во всех состояниях сцены.
+      measuringShadow = currentRenderer.shadowMap.enabled && currentRenderer.shadowMap.needsUpdate;
     },
     afterFrame(): void {
       if (!currentRenderer) return;

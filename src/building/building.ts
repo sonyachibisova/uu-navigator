@@ -98,6 +98,11 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
   const instant = prefersReducedMotion();
   const dollhouse = createDollhouse(
     new Vector3(center.x, passport.size.height / 2, center.z),
+    new Vector3(
+      (passport.footprint.x1 - passport.footprint.x0) / 2,
+      passport.size.height / 2,
+      (passport.footprint.z1 - passport.footprint.z0) / 2,
+    ),
     radius,
     shell.fragments,
     { instant },

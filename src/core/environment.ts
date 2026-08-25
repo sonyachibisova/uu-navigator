@@ -18,7 +18,7 @@ import {
   MeshStandardMaterial,
   PlaneGeometry,
 } from 'three';
-import type { Scene, WebGLRenderer } from 'three';
+import type { Material, Scene, WebGLRenderer } from 'three';
 import type { CameraFrame } from '@core/camera';
 import { isMobileLike } from '@core/renderer';
 
@@ -129,6 +129,16 @@ export function createEnvironment(
     setShadowsEnabled(enabled: boolean): void {
       if (sun.castShadow === enabled) return;
       sun.castShadow = enabled;
+      // Программы материалов собраны с учётом теней. Без пересборки снятая
+      // тень не исчезает, а вмерзает: материалы продолжают читать последнюю
+      // теневую карту, и на здании остаётся тень того ракурса, на котором
+      // включился аварийный режим.
+      scene.traverse((object) => {
+        const holder = object as { material?: Material | Material[] };
+        if (!holder.material) return;
+        const list = Array.isArray(holder.material) ? holder.material : [holder.material];
+        for (const material of list) material.needsUpdate = true;
+      });
       if (enabled) requestShadowUpdate();
     },
     dispose(): void {
