@@ -1,0 +1,149 @@
+{
+  "id": "bhsad-korpus-3",
+  "name": "Британская высшая школа дизайна, корпус 3",
+  "shortName": "Корпус 3",
+  "units": "m",
+  "up": "y",
+  "size": {
+    "width": 98.604,
+    "depth": 27.859,
+    "height": 18
+  },
+  "floorCount": 5,
+  "floorHeight": 3.6,
+  "footprint": {
+    "x0": -49.236,
+    "x1": 49.368,
+    "z0": -13.9295,
+    "z1": 13.9295
+  },
+  "origin": {
+    "description": "Начало координат — точка плана 48500 / 13260 (ось 9 по длине, середина корпуса по глубине) на уровне земли. Центр габарита смещён от неё на 0.066 м по X — здание не симметрично относительно оси 9. Ось Y вверх, X растёт на восток, Z — на юг (север здания — минимальный Z). Единицы — метры.",
+    "plan": {
+      "originMm": {
+        "x": 48500,
+        "y": 13260
+      },
+      "mmPerUnit": 1000,
+      "formula": "x = (план_x - 48500) / 1000; z = (13260 - план_y) / 1000"
+    }
+  },
+  "floors": [
+    {
+      "level": 1,
+      "file": "floors/01.json",
+      "layoutKnown": false
+    },
+    {
+      "level": 2,
+      "file": "floors/02.json",
+      "layoutKnown": false
+    },
+    {
+      "level": 3,
+      "file": "floors/03.json",
+      "layoutKnown": false
+    },
+    {
+      "level": 4,
+      "file": "floors/04.json",
+      "layoutKnown": true
+    },
+    {
+      "level": 5,
+      "file": "floors/05.json",
+      "layoutKnown": true
+    }
+  ],
+  "sources": [
+    "корпус 3 (1).pdf — план этажей 4 и 5: номера, названия, площади",
+    "рабочий прототип — координаты, снятые с чертежа (хранится вне репозитория)"
+  ],
+  "envelope": {
+    "entrance": {
+      "portal": {
+        "y": 1.8,
+        "depth": 0.25
+      },
+      "glazing": {
+        "y": 1.65,
+        "height": 3.3,
+        "depth": 0.06,
+        "inset": 0.4
+      },
+      "transom": {
+        "y": 2.95,
+        "height": 0.18,
+        "depth": 0.1,
+        "inset": 0.4
+      },
+      "mullions": {
+        "offsets": [
+          -2.6,
+          -1.3,
+          0,
+          1.3,
+          2.6
+        ],
+        "y": 1.65,
+        "width": 0.14,
+        "height": 3.3,
+        "depth": 0.1
+      },
+      "handles": {
+        "offsets": [
+          -0.35,
+          0.35
+        ],
+        "y": 1.5,
+        "width": 0.07,
+        "height": 1.1,
+        "depth": 0.07
+      },
+      "pylon": {
+        "y": 1.6,
+        "height": 3.2,
+        "depth": 0.3
+      },
+      "showcase": {
+        "y": 1.7,
+        "height": 3.4,
+        "depth": 0.18
+      },
+      "showcaseGlass": {
+        "y": 1.6,
+        "width": 1.6,
+        "height": 2.6,
+        "depth": 0.06
+      },
+      "showcaseShelf": {
+        "width": 1.6,
+        "height": 0.12,
+        "depth": 0.08,
+        "count": 5,
+        "step": 0.5,
+        "base": 0.7
+      },
+      "band": {
+        "y": 1.6,
+        "height": 2.6,
+        "depth": 0.15
+      }
+    },
+    "signs": {
+      "number": {
+        "y": 2.6,
+        "zOffset": 0.37,
+        "width": 2.4,
+        "height": 4.4
+      },
+      "title": {
+        "x": -0.042,
+        "y": 3.6,
+        "zOffset": 0.4,
+        "width": 17,
+        "height": 0.8
+      }
+    }
+  }
+}

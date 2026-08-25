@@ -1,0 +1,20 @@
+# Форматируются только конфиги сборки, точка входа и src/core.
+# Остальное форматируется вручную, чтобы не переписывать чужие файлы
+# массовой правкой стиля.
+dist
+node_modules
+package-lock.json
+
+# документация — не трогаем форматированием
+*.md
+
+# пока не форматируем
+data
+public/models
+src/building
+src/interaction
+src/nav
+src/ui
+src/assistant
+scripts/*
+!scripts/stats.ts

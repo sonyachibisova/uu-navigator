@@ -1,0 +1,50 @@
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# --- Node / Vite ---
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+.env
+.env.*
+!.env.example
+
+# --- Логи и кеши ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+.cache/
+
+# --- Редакторы ---
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+
+# --- Blender ---
+# .blend — рабочий файл модели, его версионируем.
+# Автобэкапы и временные файлы — нет.
+*.blend1
+*.blend2
+*.blend@
+/blender/tmp/
+
+# --- Тяжёлые ассеты ---
+# Презентация с заметками весит 42 МБ — в git ей не место,
+# храним в облаке и ссылаемся из README.
+# Если решишь версионировать презентации — убери две строки ниже
+# и заведи Git LFS.
+final static — финальная (с заметками).pptx
+*.mp4
+
+# --- Мусор ---
+_to_delete/
+_qa*/

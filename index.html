@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
+    <title>Британка. Корпус 3 — навигация</title>
+    <meta
+      name="description"
+      content="Трёхмерный план третьего корпуса Британки: этажи, мастерские, студии и аудитории. Открывается по ссылке, работает с телефона."
+    />
+    <meta name="theme-color" content="#0b0b0c" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:title" content="Британка. Корпус 3 — навигация" />
+    <meta
+      property="og:description"
+      content="Трёхмерный план корпуса: выбери этаж, посмотри его сверху, найди нужную аудиторию."
+    />
+    <meta name="twitter:card" content="summary" />
+
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20180%20180'%3E%3Crect%20width='180'%20height='180'%20rx='38'%20fill='%230b0b0c'/%3E%3Cpath%20d='M63.7%2064.4A28%2028%200%201%201%20112.9%2090.1M113.8%2088.6A32%2032%200%201%201%2062.3%20126'%20fill='none'%20stroke='%23ffffff'%20stroke-width='12'%20stroke-linecap='round'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="data:image/png;base64,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" />
+    <meta name="apple-mobile-web-app-title" content="Корпус 3" />
+
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b0b0c;
+        overflow: hidden;
+        overscroll-behavior: none;
+      }
+
+      #scene {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #scene canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+      }
+
+      #overlay-root {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      /* Заглушка первых секунд: видна сразу, до загрузки и разбора кода сцены.
+         Стили лежат здесь же, в разметке, поэтому не ждут ни одного запроса. */
+      #boot {
+        position: fixed;
+        inset: 0;
+        z-index: 9;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        padding: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-right, 0px))
+          max(20px, env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+        box-sizing: border-box;
+        background: #0b0b0c;
+        color: #f2efe9;
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+      #boot > * {
+        max-width: min(26em, 100%);
+      }
+
+      #boot .boot-mark {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 56px;
+        height: 56px;
+        border: 2px solid rgba(242, 239, 233, 0.8);
+        border-radius: 14px;
+        font: 700 30px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #fff;
+      }
+
+      #boot .boot-title {
+        font-size: 17px;
+        font-weight: 600;
+      }
+
+      #boot .boot-text {
+        margin: 0;
+        font-size: 14px;
+        color: rgba(242, 239, 233, 0.62);
+      }
+
+      #boot .boot-bar {
+        width: 132px;
+        height: 3px;
+        overflow: hidden;
+        border-radius: 2px;
+        background: rgba(242, 239, 233, 0.14);
+      }
+
+      #boot .boot-bar::after {
+        content: "";
+        display: block;
+        width: 40%;
+        height: 100%;
+        border-radius: 2px;
+        background: rgba(242, 239, 233, 0.6);
+        animation: boot-run 1.3s ease-in-out infinite;
+      }
+
+      @keyframes boot-run {
+        from {
+          transform: translateX(-110%);
+        }
+        to {
+          transform: translateX(260%);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #boot .boot-bar::after {
+          width: 100%;
+          opacity: 0.4;
+          animation: none;
+        }
+      }
+
+      /* Состояние «3D не запустилось»: текст внутрь кладёт код сцены. */
+      #boot.boot--error {
+        gap: 10px;
+        color: #f6e2dc;
+        font-size: 15px;
+      }
+
+      #boot.boot--error .boot-bar {
+        display: none;
+      }
+
+      #boot.boot--error .boot-mark {
+        border-color: rgba(255, 156, 138, 0.75);
+        color: #ff9c8a;
+      }
+
+      #boot.boot--error .boot-text,
+      #boot.boot--error p {
+        color: rgba(246, 226, 220, 0.78);
+      }
+
+      #boot[hidden] {
+        display: none;
+      }
+
+      /* Без JavaScript заглушка загрузки врёт, поэтому её перекрывает
+         отдельный экран с объяснением. Он не требует ни строчки кода. */
+      #noscript {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #0b0b0c;
+        color: #f2efe9;
+        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+      #noscript b {
+        font-size: 17px;
+      }
+
+      #noscript p {
+        margin: 0;
+        max-width: 26em;
+        color: rgba(242, 239, 233, 0.68);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Контейнер 3D-сцены: сюда рендерер three.js вставляет canvas. -->
+    <div id="scene"></div>
+    <!-- Корень оверлея (UI, отладочная панель) поверх сцены. -->
+    <div id="overlay-root"></div>
+    <!-- Видно до первого кадра. Снимается кодом сцены. -->
+    <div id="boot" role="status" aria-live="polite">
+      <div class="boot-mark" aria-hidden="true">3</div>
+      <div class="boot-title">Британка, корпус 3</div>
+      <div class="boot-bar" aria-hidden="true"></div>
+      <p class="boot-text">Загружаем план здания. Первый раз это занимает пару секунд.</p>
+    </div>
+    <noscript>
+      <div id="noscript">
+        <b>Нужен JavaScript</b>
+        <p>Включи JavaScript в браузере — без него план корпуса не откроется.</p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "name": "bhsad-navigator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Интерактивная 3D-навигация по зданию. Ядро рендера переиспользуется между зданиями.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "check-data": "tsx scripts/check-data.ts",
+    "stats": "tsx scripts/stats.ts"
+  },
+  "dependencies": {
+    "three": "^0.169.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@types/three": "^0.169.0",
+    "eslint": "^9.13.0",
+    "prettier": "^3.3.3",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.12.2",
+    "vite": "^5.4.10"
+  }
+}

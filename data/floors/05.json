@@ -1,0 +1,772 @@
+{
+  "level": 5,
+  "name": "5 этаж",
+  "elevation": 14.4,
+  "height": 3.6,
+  "layoutKnown": true,
+  "rooms": [
+    {
+      "id": "f05-admin-01",
+      "planNumber": null,
+      "name": "Администрация (южный блок)",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "admin",
+      "floor": 5,
+      "bounds": {
+        "x0": -49.1,
+        "x1": -30.142,
+        "z0": 4.735,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-admin-01-d01",
+          "side": "north",
+          "x": -39.5,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-admin-02",
+      "planNumber": null,
+      "name": "Администрация (северный блок)",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "admin",
+      "floor": 5,
+      "bounds": {
+        "x0": -49.1,
+        "x1": -30.4,
+        "z0": -13.034,
+        "z1": 4.285
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-admin-02-d01",
+          "side": "east",
+          "x": -30.4,
+          "z": -8.49,
+          "width": 5
+        }
+      ]
+    },
+    {
+      "id": "f05-library-01",
+      "planNumber": "5.01",
+      "name": "Learning Resource Centre",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "library",
+      "floor": 5,
+      "bounds": {
+        "x0": -30.4,
+        "x1": -18.498,
+        "z0": -13.034,
+        "z1": -4.503
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-library-01-d01",
+          "side": "west",
+          "x": -30.4,
+          "z": -8.49,
+          "width": 5
+        },
+        {
+          "id": "f05-library-01-d02",
+          "side": "south",
+          "x": -20.5,
+          "z": -4.503,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-office-01",
+      "planNumber": "5.02",
+      "name": "Преподавательская 5.02",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "office",
+      "floor": 5,
+      "bounds": {
+        "x0": -18.498,
+        "x1": -12.498,
+        "z0": -13.034,
+        "z1": -4.789
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-office-01-d01",
+          "side": "south",
+          "x": -15.5,
+          "z": -4.789,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-01",
+      "planNumber": "5.03",
+      "name": "Базерум Fashion & Textiles",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": -12.498,
+        "x1": 12.502,
+        "z0": -13.034,
+        "z1": -4.789
+      },
+      "area": 215,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-01-d01",
+          "side": "south",
+          "x": -6.5,
+          "z": -4.789,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-02",
+      "planNumber": "5.11",
+      "name": "Художественная студия",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": 12.502,
+        "x1": 30.504,
+        "z0": -13.029,
+        "z1": 2.334
+      },
+      "area": 292,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-02-d01",
+          "side": "south",
+          "x": 16,
+          "z": 2.334,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f05-workshop-01",
+      "planNumber": "5.13",
+      "name": "Мастерская Fashion 5.13",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "workshop",
+      "floor": 5,
+      "bounds": {
+        "x0": 30.504,
+        "x1": 36.8,
+        "z0": -13.029,
+        "z1": -4.729
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-workshop-01-d01",
+          "side": "south",
+          "x": 33.5,
+          "z": -4.729,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-workshop-02",
+      "planNumber": "5.14b",
+      "name": "Ювелирная мастерская",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "workshop",
+      "floor": 5,
+      "bounds": {
+        "x0": 36.8,
+        "x1": 43,
+        "z0": -13.029,
+        "z1": -4.729
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-workshop-02-d01",
+          "side": "south",
+          "x": 39.9,
+          "z": -4.729,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-workshop-03",
+      "planNumber": "5.14a",
+      "name": "Мастерская 3D",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "workshop",
+      "floor": 5,
+      "bounds": {
+        "x0": 36.3,
+        "x1": 49.2,
+        "z0": -1.783,
+        "z1": 13.5
+      },
+      "area": 220,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-workshop-03-d01",
+          "side": "north",
+          "x": 45.5,
+          "z": -1.783,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-tech-01",
+      "planNumber": null,
+      "name": "Техническое помещение (5 этаж, центральное)",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
+      "type": "tech",
+      "floor": 5,
+      "bounds": {
+        "x0": -18.498,
+        "x1": -12.498,
+        "z0": -4.223,
+        "z1": 1.741
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-tech-01-d01",
+          "side": "south",
+          "x": -15.5,
+          "z": 1.741,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-lab-01",
+      "planNumber": "5.05",
+      "name": "Класс Apple 5.05",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 5,
+      "bounds": {
+        "x0": -10.439,
+        "x1": -3.496,
+        "z0": -4.216,
+        "z1": 2.334
+      },
+      "seats": 28,
+      "mezzanine": {},
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-lab-01-d01",
+          "side": "south",
+          "x": -7.009,
+          "z": 2.334,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-03",
+      "planNumber": "5.07",
+      "name": "Базерум Project Space",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": -3.496,
+        "x1": 3.503,
+        "z0": -4.216,
+        "z1": 2.334
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-03-d01",
+          "side": "south",
+          "x": -1.014,
+          "z": 2.334,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-lab-02",
+      "planNumber": "5.09",
+      "name": "Класс Apple 5.09",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 5,
+      "bounds": {
+        "x0": 3.503,
+        "x1": 10.419,
+        "z0": -4.216,
+        "z1": 2.334
+      },
+      "seats": 28,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-lab-02-d01",
+          "side": "south",
+          "x": 5.986,
+          "z": 2.334,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f05-storage-01",
+      "planNumber": null,
+      "name": "Кладовая (5 этаж, центральная)",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
+      "type": "storage",
+      "floor": 5,
+      "bounds": {
+        "x0": 10.419,
+        "x1": 12.502,
+        "z0": -4.279,
+        "z1": 2.303
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-storage-01-d01",
+          "side": "south",
+          "x": 11.5,
+          "z": 2.303,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-class-01",
+      "planNumber": "5.04",
+      "name": "Семинарская 5.04",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "class",
+      "floor": 5,
+      "bounds": {
+        "x0": -12.498,
+        "x1": -6.498,
+        "z0": 4.785,
+        "z1": 13.5
+      },
+      "area": 50,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-class-01-d01",
+          "side": "north",
+          "x": -9.5,
+          "z": 4.785,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-04",
+      "planNumber": "5.06a",
+      "name": "Базерум Contemporary Art 5.06a",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": -6.498,
+        "x1": 0.3,
+        "z0": 4.78,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-04-d01",
+          "side": "north",
+          "x": -3.5,
+          "z": 4.78,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-05",
+      "planNumber": "5.06b",
+      "name": "Базерум Contemporary Art 5.06b",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": 0.3,
+        "x1": 6.502,
+        "z0": 4.78,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-05-d01",
+          "side": "north",
+          "x": 3.5,
+          "z": 4.78,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-studio-06",
+      "planNumber": "5.08",
+      "name": "Базерум CA",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 5,
+      "bounds": {
+        "x0": 6.502,
+        "x1": 12.502,
+        "z0": 4.786,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-studio-06-d01",
+          "side": "north",
+          "x": 8.49,
+          "z": 4.786,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-class-02",
+      "planNumber": "5.10",
+      "name": "Семинарская 5.10",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "class",
+      "floor": 5,
+      "bounds": {
+        "x0": 12.502,
+        "x1": 18.502,
+        "z0": 4.79,
+        "z1": 13.5
+      },
+      "area": 50,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-class-02-d01",
+          "side": "north",
+          "x": 15.5,
+          "z": 4.79,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-workshop-04",
+      "planNumber": "5.12",
+      "name": "Мастерская Fashion 5.12",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "workshop",
+      "floor": 5,
+      "bounds": {
+        "x0": 18.502,
+        "x1": 25.997,
+        "z0": 4.79,
+        "z1": 13.5
+      },
+      "area": 60,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-workshop-04-d01",
+          "side": "north",
+          "x": 20.9,
+          "z": 4.79,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f05-wc-01",
+      "planNumber": null,
+      "name": "Санузел 5 этажа (западный)",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "wc",
+      "floor": 5,
+      "bounds": {
+        "x0": -18.6,
+        "x1": -15.4,
+        "z0": 4.735,
+        "z1": 10.741
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-wc-01-d01",
+          "side": "north",
+          "x": -16.6,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-wc-02",
+      "planNumber": null,
+      "name": "Санузел 5 этажа (восточный)",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "wc",
+      "floor": 5,
+      "bounds": {
+        "x0": -15.4,
+        "x1": -12.527,
+        "z0": 4.735,
+        "z1": 10.741
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-wc-02-d01",
+          "side": "north",
+          "x": -14.0,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f05-tech-02",
+      "planNumber": null,
+      "name": "Технические помещения (5 этаж, западный блок)",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
+      "type": "tech",
+      "floor": 5,
+      "bounds": {
+        "x0": -26,
+        "x1": -22.32,
+        "z0": 6.313,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f05-tech-02-d01",
+          "side": "north",
+          "x": -24.2,
+          "z": 6.313,
+          "width": 1.4
+        }
+      ]
+    }
+  ],
+  "corridors": [
+    {
+      "id": "f05-corr-01",
+      "floor": 5,
+      "name": "Главный коридор 5 этажа",
+      "bounds": {
+        "x0": -30.4,
+        "x1": 36.3,
+        "z0": 2.334,
+        "z1": 4.735
+      }
+    },
+    {
+      "id": "f05-corr-02",
+      "floor": 5,
+      "name": "Коридор мастерских (восточный)",
+      "bounds": {
+        "x0": 30.504,
+        "x1": 49.2,
+        "z0": -4.729,
+        "z1": -1.783
+      }
+    },
+    {
+      "id": "f05-corr-03",
+      "floor": 5,
+      "name": "Проход к Learning Resource Centre",
+      "bounds": {
+        "x0": -22.0,
+        "x1": -18.498,
+        "z0": -4.503,
+        "z1": 2.334
+      }
+    },
+    {
+      "id": "f05-corr-04",
+      "floor": 5,
+      "name": "Связка с коридором мастерских",
+      "bounds": {
+        "x0": 30.504,
+        "x1": 36.3,
+        "z0": -1.783,
+        "z1": 2.334
+      }
+    },
+    {
+      "id": "f05-corr-05",
+      "floor": 5,
+      "name": "Лифтовой холл (западный)",
+      "bounds": {
+        "x0": -26.114,
+        "x1": -18.6,
+        "z0": 4.735,
+        "z1": 6.32
+      }
+    },
+    {
+      "id": "f05-corr-06",
+      "floor": 5,
+      "name": "Подход к южной лестнице 1",
+      "bounds": {
+        "x0": -29.949,
+        "x1": -26.324,
+        "z0": 4.735,
+        "z1": 5.66
+      }
+    },
+    {
+      "id": "f05-corr-07",
+      "floor": 5,
+      "name": "Подход к южной лестнице 2",
+      "bounds": {
+        "x0": 31.04,
+        "x1": 34.665,
+        "z0": 4.735,
+        "z1": 5.66
+      }
+    },
+    {
+      "id": "f05-corr-08",
+      "floor": 5,
+      "name": "Лифтовой холл (восточный)",
+      "bounds": {
+        "x0": 26.392,
+        "x1": 29.693,
+        "z0": 4.735,
+        "z1": 6.683
+      }
+    }
+  ],
+  "vertical": [
+    {
+      "id": "stair-south-01",
+      "kind": "stairs",
+      "name": "Лестница южная 1",
+      "bounds": {
+        "x0": -29.949,
+        "x1": -26.324,
+        "z0": 5.66,
+        "z1": 12.26
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": false,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "stair-south-02",
+      "kind": "stairs",
+      "name": "Лестница южная 2",
+      "bounds": {
+        "x0": 31.04,
+        "x1": 34.665,
+        "z0": 5.66,
+        "z1": 12.26
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": false,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "lift-01",
+      "kind": "lift",
+      "name": "Лифт 1",
+      "bounds": {
+        "x0": -22.32,
+        "x1": -18.6,
+        "z0": 6.32,
+        "z1": 10.0
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": true,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "lift-02",
+      "kind": "lift",
+      "name": "Лифт 2",
+      "bounds": {
+        "x0": 26.392,
+        "x1": 29.693,
+        "z0": 6.683,
+        "z1": 10.671
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": true,
+      "accessibilityConfirmed": false
+    }
+  ]
+}

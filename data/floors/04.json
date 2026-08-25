@@ -1,0 +1,842 @@
+{
+  "level": 4,
+  "name": "4 этаж",
+  "elevation": 10.8,
+  "height": 3.6,
+  "layoutKnown": true,
+  "rooms": [
+    {
+      "id": "f04-office-01",
+      "planNumber": "4.21",
+      "name": "Офис печати",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "office",
+      "floor": 4,
+      "bounds": {
+        "x0": -36.319,
+        "x1": -30.4,
+        "z0": -13.035,
+        "z1": -0.28
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-office-01-d01",
+          "side": "south",
+          "x": -33.98,
+          "z": -0.28,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-01",
+      "planNumber": "4.09",
+      "name": "Базерум FAD",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": -18.508,
+        "x1": 18.5,
+        "z0": -13.035,
+        "z1": -4.504
+      },
+      "area": 340,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-01-d01",
+          "side": "south",
+          "x": -9.5,
+          "z": -4.504,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-02",
+      "planNumber": "4.14",
+      "name": "Базерум Illustration 4.14",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 18.5,
+        "x1": 24.494,
+        "z0": -13.035,
+        "z1": -6.001
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-02-d01",
+          "side": "south",
+          "x": 21.5,
+          "z": -6.001,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-03",
+      "planNumber": "4.15",
+      "name": "Базерум Illustration 4.15",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 24.494,
+        "x1": 36.496,
+        "z0": -13.035,
+        "z1": -4.504
+      },
+      "area": 100,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-03-d01",
+          "side": "south",
+          "x": 30.497,
+          "z": -4.504,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-04",
+      "planNumber": "4.16",
+      "name": "Базерум GD",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 36.496,
+        "x1": 49.2,
+        "z0": -13.035,
+        "z1": -4.504
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-04-d01",
+          "side": "south",
+          "x": 42.495,
+          "z": -4.504,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-gallery-01",
+      "planNumber": "4.00",
+      "name": "Галерея UContemporary",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "gallery",
+      "floor": 4,
+      "bounds": {
+        "x0": -26.114,
+        "x1": -18.508,
+        "z0": -4.504,
+        "z1": 2.434
+      },
+      "mezzanine": {},
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-gallery-01-d01",
+          "side": "south",
+          "x": -22.5,
+          "z": 2.434,
+          "width": 1.4
+        },
+        {
+          "id": "f04-gallery-01-d02",
+          "side": "east",
+          "x": -18.508,
+          "z": -3.9,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-office-02",
+      "planNumber": "4.05",
+      "name": "Преподавательская 4.05",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "office",
+      "floor": 4,
+      "bounds": {
+        "x0": -18.508,
+        "x1": -12.501,
+        "z0": -3.105,
+        "z1": 2.434
+      },
+      "area": 50,
+      "mezzanine": {},
+      "accessible": "unknown",
+      "description": "Над помещением антресоль со своей лестницей: площадь с чертежа (50 м²) больше габарита по осям (33 м²) на её счёт.",
+      "doors": [
+        {
+          "id": "f04-office-02-d01",
+          "side": "south",
+          "x": -15.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-lab-01",
+      "planNumber": "4.06",
+      "name": "Компьютерный класс 4.06",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 4,
+      "bounds": {
+        "x0": -12.501,
+        "x1": -6.502,
+        "z0": -3.105,
+        "z1": 2.434
+      },
+      "area": 50,
+      "seats": 28,
+      "accessible": "unknown",
+      "description": "Площадь 50 м² — подпись на чертеже; расчёт по границам даёт 33 м². Границы сняты по осям, площадь на чертеже — по внутренней отделке; расхождение не разрешено, нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-lab-01-d01",
+          "side": "south",
+          "x": -9.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-lab-02",
+      "planNumber": "4.07",
+      "name": "Компьютерный класс 4.07",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 4,
+      "bounds": {
+        "x0": -6.502,
+        "x1": 0.494,
+        "z0": -3.105,
+        "z1": 2.434
+      },
+      "area": 50,
+      "seats": 28,
+      "accessible": "unknown",
+      "description": "Площадь 50 м² — подпись на чертеже; расчёт по границам даёт 39 м². Границы сняты по осям, площадь на чертеже — по внутренней отделке; расхождение не разрешено, нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-lab-02-d01",
+          "side": "south",
+          "x": -3,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-lab-03",
+      "planNumber": "4.08",
+      "name": "Компьютерный класс 4.08",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 4,
+      "bounds": {
+        "x0": 0.494,
+        "x1": 6.494,
+        "z0": -4.504,
+        "z1": 2.434
+      },
+      "area": 50,
+      "seats": 28,
+      "accessible": "unknown",
+      "description": "Площадь 50 м² — подпись на чертеже; расчёт по границам даёт 42 м². Границы сняты по осям, площадь на чертеже — по внутренней отделке; расхождение не разрешено, нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-lab-03-d01",
+          "side": "south",
+          "x": 3.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-storage-01",
+      "planNumber": null,
+      "name": "Кладовая (4 этаж, центральная)",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
+      "type": "storage",
+      "floor": 4,
+      "bounds": {
+        "x0": 6.494,
+        "x1": 8.536,
+        "z0": -4.279,
+        "z1": 2.434
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-storage-01-d01",
+          "side": "south",
+          "x": 7.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-class-01",
+      "planNumber": "4.10",
+      "name": "Семинарская 4.10",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "class",
+      "floor": 4,
+      "bounds": {
+        "x0": 8.536,
+        "x1": 12.494,
+        "z0": -4.217,
+        "z1": 2.434
+      },
+      "area": 30,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-class-01-d01",
+          "side": "south",
+          "x": 10.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-class-02",
+      "planNumber": "4.11",
+      "name": "Семинарская 4.11",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "class",
+      "floor": 4,
+      "bounds": {
+        "x0": 12.494,
+        "x1": 18.496,
+        "z0": -4.224,
+        "z1": 2.434
+      },
+      "area": 50,
+      "mezzanine": {},
+      "accessible": "unknown",
+      "description": "Над помещением антресоль со своей лестницей: площадь с чертежа (50 м²) больше габарита по осям (40 м²) на её счёт.",
+      "doors": [
+        {
+          "id": "f04-class-02-d01",
+          "side": "south",
+          "x": 15.5,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-tech-01",
+      "planNumber": "4.20",
+      "name": "Антресоль 4.20",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "tech",
+      "floor": 4,
+      "bounds": {
+        "x0": 18.496,
+        "x1": 24.494,
+        "z0": 4.735,
+        "z1": 9.735
+      },
+      "area": 30,
+      "mezzanine": {
+        "area": 30
+      },
+      "accessible": "unknown",
+      "description": "На чертеже подписана «Антресоль, 30 м²» со своей лестницей; в данных заведена как помещение верхнего уровня, полууровней схема не знает.",
+      "doors": [
+        {
+          "id": "f04-tech-01-d01",
+          "side": "north",
+          "x": 21.5,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-storage-02",
+      "planNumber": "4.12",
+      "name": "Кладовая 4.12",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "storage",
+      "floor": 4,
+      "bounds": {
+        "x0": 18.496,
+        "x1": 24.494,
+        "z0": -6.001,
+        "z1": 2.434
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-storage-02-d01",
+          "side": "east",
+          "x": 24.494,
+          "z": 1.518,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-tech-02",
+      "planNumber": "4.13",
+      "name": "Фотостудия 4.13",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "tech",
+      "floor": 4,
+      "bounds": {
+        "x0": 24.494,
+        "x1": 34.96,
+        "z0": -4.504,
+        "z1": 2.434
+      },
+      "area": 70,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-tech-02-d01",
+          "side": "west",
+          "x": 24.494,
+          "z": 1.518,
+          "width": 1.4
+        },
+        {
+          "id": "f04-tech-02-d02",
+          "side": "east",
+          "x": 34.96,
+          "z": 1.518,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-tech-03",
+      "planNumber": "4.17",
+      "name": "Тёмная комната 4.17",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "tech",
+      "floor": 4,
+      "bounds": {
+        "x0": 34.96,
+        "x1": 44.218,
+        "z0": -4.504,
+        "z1": 2.434
+      },
+      "area": 40,
+      "accessible": "unknown",
+      "description": "Площадь 40 м² — подпись на чертеже; габарит по осям даёт 64 м²: в границы попал смежный тамбур. Нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-tech-03-d01",
+          "side": "south",
+          "x": 36.53,
+          "z": 2.434,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-wc-01",
+      "planNumber": null,
+      "name": "Санузел 4 этажа (восточный блок)",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "wc",
+      "floor": 4,
+      "bounds": {
+        "x0": 44.218,
+        "x1": 48.661,
+        "z0": -4.504,
+        "z1": 2.434
+      },
+      "area": 35,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-wc-01-d01",
+          "side": "west",
+          "x": 44.218,
+          "z": -0.74,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-class-03",
+      "planNumber": "4.04",
+      "name": "Многофункциональный зал",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "class",
+      "floor": 4,
+      "bounds": {
+        "x0": -18.6,
+        "x1": -6.502,
+        "z0": 4.735,
+        "z1": 13.047
+      },
+      "area": 80,
+      "accessible": "unknown",
+      "description": "Площадь 80 м² — подпись на чертеже; расчёт по границам даёт 101 м². Границы сняты по осям, площадь на чертеже — по внутренней отделке; расхождение не разрешено, нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-class-03-d01",
+          "side": "north",
+          "x": -9.5,
+          "z": 4.735,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f04-lab-04",
+      "planNumber": "4.03",
+      "name": "Класс Apple 4.03",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "lab",
+      "floor": 4,
+      "bounds": {
+        "x0": -6.502,
+        "x1": 0.494,
+        "z0": 4.735,
+        "z1": 13.046
+      },
+      "seats": 28,
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-lab-04-d01",
+          "side": "north",
+          "x": -4.5,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-05",
+      "planNumber": "4.02",
+      "name": "Базерум PD и IAD 4.02",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 0.494,
+        "x1": 12.5,
+        "z0": 4.735,
+        "z1": 13.04
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-05-d01",
+          "side": "north",
+          "x": 3.5,
+          "z": 4.735,
+          "width": 3
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-06",
+      "planNumber": "4.01",
+      "name": "Базерум PD и IAD 4.01",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 12.5,
+        "x1": 18.496,
+        "z0": 4.735,
+        "z1": 12.983
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-studio-06-d01",
+          "side": "north",
+          "x": 14.506,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-studio-07",
+      "planNumber": "4.19",
+      "name": "Базерум Illustration 4.19",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "studio",
+      "floor": 4,
+      "bounds": {
+        "x0": 36.3,
+        "x1": 42.499,
+        "z0": 4.735,
+        "z1": 13.04
+      },
+      "area": 65,
+      "accessible": "unknown",
+      "description": "Площадь 65 м² — подпись на чертеже; расчёт по границам даёт 51 м². Границы сняты по осям, площадь на чертеже — по внутренней отделке; расхождение не разрешено, нужен обмер.",
+      "doors": [
+        {
+          "id": "f04-studio-07-d01",
+          "side": "north",
+          "x": 39.5,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-workshop-01",
+      "planNumber": "4.18",
+      "name": "Текстильная мастерская",
+      "nameConfirmed": true,
+      "nameSource": "plan",
+      "type": "workshop",
+      "floor": 4,
+      "bounds": {
+        "x0": 42.499,
+        "x1": 49.2,
+        "z0": 4.735,
+        "z1": 13.04
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-workshop-01-d01",
+          "side": "north",
+          "x": 43.26,
+          "z": 4.735,
+          "width": 1.4
+        }
+      ]
+    },
+    {
+      "id": "f04-tech-04",
+      "planNumber": null,
+      "name": "Технические помещения (4 этаж, западный блок)",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
+      "type": "tech",
+      "floor": 4,
+      "bounds": {
+        "x0": -26.114,
+        "x1": -22.32,
+        "z0": 6.313,
+        "z1": 13.5
+      },
+      "accessible": "unknown",
+      "doors": [
+        {
+          "id": "f04-tech-04-d01",
+          "side": "north",
+          "x": -24.2,
+          "z": 6.313,
+          "width": 1.4
+        }
+      ]
+    }
+  ],
+  "corridors": [
+    {
+      "id": "f04-corr-01",
+      "floor": 4,
+      "name": "Главный коридор 4 этажа",
+      "bounds": {
+        "x0": -35.5,
+        "x1": 48.661,
+        "z0": 2.434,
+        "z1": 4.735
+      }
+    },
+    {
+      "id": "f04-corr-02",
+      "floor": 4,
+      "name": "Лифтовой холл (западный)",
+      "bounds": {
+        "x0": -26.114,
+        "x1": -18.6,
+        "z0": 4.735,
+        "z1": 6.32
+      }
+    },
+    {
+      "id": "f04-corr-03",
+      "floor": 4,
+      "name": "Подход к южной лестнице 1",
+      "bounds": {
+        "x0": -29.949,
+        "x1": -26.324,
+        "z0": 4.735,
+        "z1": 5.66
+      }
+    },
+    {
+      "id": "f04-corr-04",
+      "floor": 4,
+      "name": "Подход к южной лестнице 2",
+      "bounds": {
+        "x0": 31.04,
+        "x1": 34.665,
+        "z0": 4.735,
+        "z1": 5.66
+      }
+    },
+    {
+      "id": "f04-corr-05",
+      "floor": 4,
+      "name": "Лифтовой холл (восточный)",
+      "bounds": {
+        "x0": 26.392,
+        "x1": 29.693,
+        "z0": 4.735,
+        "z1": 6.683
+      }
+    },
+    {
+      "id": "f04-corr-06",
+      "floor": 4,
+      "name": "Проход к 4.21",
+      "bounds": {
+        "x0": -35.5,
+        "x1": -32.5,
+        "z0": -0.28,
+        "z1": 2.434
+      }
+    },
+    {
+      "id": "f04-corr-07",
+      "floor": 4,
+      "name": "Северный проход перед 4.09",
+      "bounds": {
+        "x0": -18.508,
+        "x1": 0.494,
+        "z0": -4.504,
+        "z1": -3.105
+      }
+    }
+  ],
+  "vertical": [
+    {
+      "id": "stair-south-01",
+      "kind": "stairs",
+      "name": "Лестница южная 1",
+      "bounds": {
+        "x0": -29.949,
+        "x1": -26.324,
+        "z0": 5.66,
+        "z1": 12.26
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": false,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "stair-south-02",
+      "kind": "stairs",
+      "name": "Лестница южная 2",
+      "bounds": {
+        "x0": 31.04,
+        "x1": 34.665,
+        "z0": 5.66,
+        "z1": 12.26
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": false,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "lift-01",
+      "kind": "lift",
+      "name": "Лифт 1",
+      "bounds": {
+        "x0": -22.32,
+        "x1": -18.6,
+        "z0": 6.32,
+        "z1": 10.0
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": true,
+      "accessibilityConfirmed": false
+    },
+    {
+      "id": "lift-02",
+      "kind": "lift",
+      "name": "Лифт 2",
+      "bounds": {
+        "x0": 26.392,
+        "x1": 29.693,
+        "z0": 6.683,
+        "z1": 10.671
+      },
+      "connects": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "accessible": true,
+      "accessibilityConfirmed": false
+    }
+  ]
+}
