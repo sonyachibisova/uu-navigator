@@ -233,6 +233,13 @@ function roomView(frame: FloorFrame, room: Room, tag: string): RoomView {
     floor: room.floor,
     bounds: room.bounds,
     focus: { x: center.x, y: plateY, z: center.z },
+    doors: room.doors.map((door) => ({
+      id: door.id,
+      side: door.side,
+      x: door.x,
+      z: door.z,
+      width: door.width,
+    })),
     plate: { center: { x: center.x, y: plateY, z: center.z }, width, depth },
     parts: roomParts(frame, room, prefix),
     label,

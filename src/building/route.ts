@@ -1,0 +1,127 @@
+/**
+ * Отрисовка маршрута: лента по полу вдоль ломаной.
+ *
+ * Это пятая группа верхнего уровня — `routeGroup`. Инвариант 1 правил проекта
+ * говорит про геометрию здания: её четыре группы, и маршрут в них не входит,
+ * как не входят небо и земля (`@core/environment`). Маршрут — это ответ на
+ * вопрос человека, а не часть корпуса: он появляется и исчезает, живёт своей
+ * жизнью и пересобирается целиком при каждом изменении.
+ *
+ * Показывается только та часть маршрута, которая лежит на видимом сейчас
+ * этаже. Иначе лента с пятого этажа висела бы в воздухе над четвёртым:
+ * срез по этажу снимает всё выше, а маршрут об этом ничего не знал бы.
+ */
+import { BufferAttribute, BufferGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial } from 'three';
+import type { Route } from '@routing/path';
+
+/** Ширина ленты, метры: заметно, но не перекрывает подписи помещений. */
+const WIDTH = 0.7;
+/**
+ * Высота ленты над полом этажа, метры. Плита помещения лежит на 0.28 —
+ * лента обязана быть выше, иначе она уходит под плиту и не видна вовсе
+ * (проверено кадром: маршрут считался, а на экране его не было).
+ * Подписи начинаются с 2.5, так что места достаточно.
+ */
+const LIFT = 0.36;
+/** Порядок отрисовки: поверх плит, под подписями. */
+const RENDER_ORDER = 2;
+/** Цвет ленты. Тёплый и насыщенный: в интерьере таких нет, спутать не с чем. */
+const COLOR = 0xe2483d;
+
+export interface RouteHandle {
+  group: Group;
+  /**
+   * Показать маршрут. `activeLevel` — этаж, срез по которому включён сейчас;
+   * `null` означает «здание целиком», и тогда видны все части маршрута.
+   */
+  show: (route: Route | undefined, activeLevel: number | null) => void;
+  dispose: () => void;
+}
+
+/**
+ * Высота пола этажа. Передаётся снаружи, потому что маршрут не должен знать
+ * ни про паспорт здания, ни про источник данных.
+ */
+export type FloorElevation = (level: number) => number;
+
+export function createRoute(elevationOf: FloorElevation): RouteHandle {
+  const group = new Group();
+  group.name = 'routeGroup';
+
+  // Обе стороны видимы намеренно: обход четырёхугольника зависит от того,
+  // куда повернуло звено маршрута, и при односторонней грани половина ленты
+  // отсекалась бы как «изнанка». Проверено кадром: маршрут считался, шаги
+  // печатались, а на экране не было ничего.
+  const material = new MeshBasicMaterial({
+    color: COLOR,
+    transparent: true,
+    opacity: 0.92,
+    side: DoubleSide,
+  });
+  material.depthWrite = false;
+  const geometry = new BufferGeometry();
+  const mesh = new Mesh(geometry, material);
+  mesh.name = 'route.ribbon';
+  mesh.renderOrder = RENDER_ORDER;
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  group.add(mesh);
+
+  function show(route: Route | undefined, activeLevel: number | null): void {
+    const legs = route?.legs.filter((leg) => activeLevel === null || leg.level === activeLevel);
+    if (!legs || legs.length === 0) {
+      mesh.visible = false;
+      return;
+    }
+
+    // Лента собирается по четырёхугольнику на звено. Стыки не срезаются:
+    // на ширине 0.7 м и углах коридоров это меньше сантиметра расхождения,
+    // а честное построение стыка стоило бы вдвое больше кода.
+    const positions: number[] = [];
+    for (const leg of legs) {
+      const y = elevationOf(leg.level) + LIFT;
+      for (let i = 1; i < leg.points.length; i += 1) {
+        const from = leg.points[i - 1];
+        const to = leg.points[i];
+        if (!from || !to) continue;
+        const dx = to.x - from.x;
+        const dz = to.z - from.z;
+        const length = Math.hypot(dx, dz);
+        if (length < 1e-4) continue;
+        // Нормаль в плане: половина ширины ленты влево и вправо от звена.
+        const nx = (-dz / length) * (WIDTH / 2);
+        const nz = (dx / length) * (WIDTH / 2);
+        const ax = from.x + nx;
+        const az = from.z + nz;
+        const bx = from.x - nx;
+        const bz = from.z - nz;
+        const cx = to.x - nx;
+        const cz = to.z - nz;
+        const ex = to.x + nx;
+        const ez = to.z + nz;
+        positions.push(ax, y, az, bx, y, bz, cx, y, cz);
+        positions.push(ax, y, az, cx, y, cz, ex, y, ez);
+      }
+    }
+
+    if (positions.length === 0) {
+      mesh.visible = false;
+      return;
+    }
+    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
+    geometry.computeBoundingSphere();
+    mesh.visible = true;
+  }
+
+  return {
+    group,
+    show,
+    dispose(): void {
+      mesh.removeFromParent();
+      geometry.dispose();
+      material.dispose();
+      group.removeFromParent();
+      group.clear();
+    },
+  };
+}

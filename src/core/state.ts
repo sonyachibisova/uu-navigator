@@ -22,6 +22,12 @@ export interface SceneState {
   /** Идентификатор помещения под курсором или `null`. */
   hoveredRoomId: string | null;
   /**
+   * Откуда строится маршрут. Куда — это выбранное помещение: человек сначала
+   * говорит «отсюда», потом ищет, куда идти, и маршрут появляется сам.
+   * `null` — маршрут не строится.
+   */
+  routeFromId: string | null;
+  /**
    * Режим «изолировать этаж»: невыбранные этажи скрываются полностью.
    * По умолчанию выключен — невыбранные этажи приглушаются, а не прячутся
    * (инвариант 7 правил проекта). Это отдельный явный режим, а не поведение.
@@ -82,6 +88,7 @@ export function createSceneStore(): Store<SceneState> {
     activeFloor: null,
     selectedRoomId: null,
     hoveredRoomId: null,
+    routeFromId: null,
     isolate: false,
   });
 }

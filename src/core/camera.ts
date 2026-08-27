@@ -98,6 +98,12 @@ export interface CameraHandle {
    * с той же дистанции, с которой его и не было видно.
    */
   frameRoom: (center: Vector3, radius: number) => void;
+  /**
+   * Подвести камеру так, чтобы в кадр попал прямоугольник в плане: им
+   * кадрируется маршрут целиком. Показывать маршрут, у которого в кадре
+   * только конец, — то же самое, что не показывать его вовсе.
+   */
+  frameArea: (center: Vector3, halfX: number, halfZ: number) => void;
   /** Вернуть камеру и точку интереса к стартовой рамке с анимацией. */
   home: () => void;
   /**
@@ -336,6 +342,25 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
         controls.maxDistance * 0.9,
       );
       goal.set(homeTarget.x, centerY, homeTarget.z);
+      flightPosition.copy(flightDirection).multiplyScalar(distance).add(goal);
+      touched = true;
+      startFlight();
+    },
+    frameArea(center: Vector3, halfX: number, halfZ: number): void {
+      updateHomeFrame();
+      offset.subVectors(camera.position, controls.target);
+      const azimuth = Math.atan2(offset.x, offset.z);
+      const elevation = MathUtils.degToRad(FLOOR_ELEVATION);
+      const flat = Math.cos(elevation);
+      flightDirection.set(Math.sin(azimuth) * flat, Math.sin(elevation), Math.cos(azimuth) * flat);
+      flightHalf.set(Math.max(halfX, 4), 2, Math.max(halfZ, 4));
+      const distance = MathUtils.clamp(
+        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        controls.minDistance * 1.2,
+        controls.maxDistance * 0.9,
+      );
+      goal.copy(center);
+      clampTarget(goal);
       flightPosition.copy(flightDirection).multiplyScalar(distance).add(goal);
       touched = true;
       startFlight();

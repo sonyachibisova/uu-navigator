@@ -127,6 +127,15 @@ export interface LabelSpec {
   position: Vec3;
 }
 
+/** Дверь помещения так, как её видит движок. */
+export interface RoomDoor {
+  id: string;
+  side: 'north' | 'south' | 'west' | 'east';
+  x: number;
+  z: number;
+  width: number;
+}
+
 /** Помещение так, как его видит движок. */
 export interface RoomView {
   id: string;
@@ -142,6 +151,12 @@ export interface RoomView {
   focus: Vec3;
   /** Кликабельная плита пола: одна на помещение. */
   plate: { center: Vec3; width: number; depth: number };
+  /**
+   * Двери помещения: точка в плане и сторона, с которой дверь стоит.
+   * Нужны маршрутам: войти в помещение можно только через дверь, и именно
+   * поэтому путь огибает стены, а не идёт сквозь них.
+   */
+  doors: RoomDoor[];
   /** Стены и дверные полотна помещения — именованные элементы. */
   parts: Part[];
   label: LabelSpec | null;

@@ -14,6 +14,7 @@
  * пустую серую плиту: их кнопка неактивна и подписана состоянием.
  */
 import type { Store, SceneState } from '@core/state';
+import type { Route } from '@routing/path';
 import type { BuildingHandle } from '@building/building';
 import { VERTICAL_CSS, purposeCss } from '@building/materials';
 import type { RoomPurpose } from '@building/source';
@@ -97,6 +98,14 @@ const STYLE = `
 #ui-card .title { font-size: 15px; }
 #ui-card .title b { margin-right: 6px; font-size: 18px; color: #143a8a; }
 #ui-card .where { color: #6b6b6b; font-size: 13px; }
+#ui-card .actions { display: flex; gap: 8px; margin-top: 8px; }
+#ui-card .actions button { height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+  background: #143a8a; color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+#ui-card .actions button.ghost { background: rgba(0,0,0,.08); color: #333; }
+#ui-card .route { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.1); }
+#ui-card .route .head { font-size: 13px; color: #143a8a; font-weight: 600; }
+#ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 13px;
+  line-height: 1.5; max-height: 148px; overflow-y: auto; }
 
 /* Колонна этажей живёт в полосе между подсказкой и карточкой: заданы и top,
    и bottom, поэтому она не наезжает ни на ту, ни на другую даже на коротком экране. */
@@ -147,6 +156,8 @@ const STYLE = `
 `;
 
 export interface UiHandle {
+  /** Показать посчитанный маршрут или убрать его. Считает его точка сборки. */
+  showRoute: (route: Route | undefined) => void;
   dispose: () => void;
 }
 
@@ -166,6 +177,8 @@ export interface UiActions {
    * решает точка сборки.
    */
   showRoom: (id: string) => void;
+  /** Запомнить точку отправления или забыть её (`null`). */
+  setRouteFrom: (id: string | null) => void;
 }
 
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
@@ -437,7 +450,37 @@ export function createUi(
   cardTitle.append(cardNumber, cardName);
   const cardWhere = document.createElement('div');
   cardWhere.className = 'where';
-  card.append(cardTitle, cardWhere);
+
+  // Маршрут строится в два касания: «отсюда» на одном помещении, потом выбор
+  // второго. Отдельного экрана «откуда — куда» нет намеренно: на телефоне это
+  // две строки ввода и клавиатура поверх модели, а действий всё равно два.
+  const cardActions = document.createElement('div');
+  cardActions.className = 'actions';
+  const routeFromButton = document.createElement('button');
+  routeFromButton.type = 'button';
+  routeFromButton.textContent = 'Маршрут отсюда';
+  const routeClearButton = document.createElement('button');
+  routeClearButton.type = 'button';
+  routeClearButton.className = 'ghost';
+  routeClearButton.textContent = 'Сбросить';
+  routeClearButton.hidden = true;
+  cardActions.append(routeFromButton, routeClearButton);
+
+  const routeBlock = document.createElement('div');
+  routeBlock.className = 'route';
+  routeBlock.hidden = true;
+  const routeHead = document.createElement('div');
+  routeHead.className = 'head';
+  const routeSteps = document.createElement('ol');
+  routeBlock.append(routeHead, routeSteps);
+
+  routeFromButton.addEventListener('click', () => {
+    const id = store.state.selectedRoomId;
+    if (id) actions.setRouteFrom(id);
+  });
+  routeClearButton.addEventListener('click', () => actions.setRouteFrom(null));
+
+  card.append(cardTitle, cardWhere, cardActions, routeBlock);
   container.appendChild(card);
 
   /* ---------- главное действие: подлёт камеры ---------- */
@@ -587,6 +630,36 @@ export function createUi(
   let shownRoomId: string | null = null;
   let shownFloorKey = '';
 
+  /** Последний показанный маршрут: из него собирается блок в карточке. */
+  let shownRoute: Route | undefined;
+
+  function renderRoute(): void {
+    const state = store.state;
+    const waiting = state.routeFromId !== null && !shownRoute;
+    routeClearButton.hidden = state.routeFromId === null;
+    routeFromButton.hidden = state.routeFromId !== null;
+
+    if (shownRoute) {
+      routeHead.textContent = `${shownRoute.fromName} → ${shownRoute.toName}: ${Math.round(shownRoute.meters)} м, ${shownRoute.minutes} мин`;
+      routeSteps.replaceChildren();
+      for (const step of shownRoute.steps) {
+        const item = document.createElement('li');
+        item.textContent = step.text;
+        routeSteps.appendChild(item);
+      }
+      routeBlock.hidden = false;
+      return;
+    }
+
+    if (waiting) {
+      routeHead.textContent = 'Теперь выберите, куда идти — тапом или поиском';
+      routeSteps.replaceChildren();
+      routeBlock.hidden = false;
+      return;
+    }
+    routeBlock.hidden = true;
+  }
+
   function render(state: SceneState): void {
     const floorKey = `${state.mode}:${state.activeFloor ?? ''}`;
     if (floorKey !== shownFloorKey) {
@@ -603,7 +676,10 @@ export function createUi(
       }
     }
 
-    if (state.selectedRoomId === shownRoomId) return;
+    if (state.selectedRoomId === shownRoomId) {
+      renderRoute();
+      return;
+    }
     shownRoomId = state.selectedRoomId;
 
     const room = shownRoomId ? building.roomById(shownRoomId) : undefined;
@@ -616,6 +692,7 @@ export function createUi(
     cardNumber.hidden = number === '';
     cardName.textContent = room.name;
     cardWhere.textContent = `${room.floor} этаж, ${building.passport.shortName}`;
+    renderRoute();
     card.hidden = false;
   }
 
@@ -623,6 +700,10 @@ export function createUi(
   const unsubscribe = store.subscribe((next) => render(next));
 
   return {
+    showRoute(route: Route | undefined): void {
+      shownRoute = route;
+      renderRoute();
+    },
     dispose(): void {
       unsubscribe();
       window.removeEventListener('pointerdown', onScenePointer, true);

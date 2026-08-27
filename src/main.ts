@@ -15,10 +15,15 @@ import type { RendererHandle } from '@core/renderer';
 import { createEnvironment } from '@core/environment';
 import { createLoop } from '@core/loop';
 import { createSceneStore } from '@core/state';
+import type { SceneState } from '@core/state';
 import { initDebugOverlay } from '@core/debug-overlay';
 import { createBuilding } from '@building/building';
 import { BuildingDataError, ProceduralSource } from '@building/sources/procedural';
 import { createInteraction } from '@interaction/controller';
+import { createRoute } from '@building/route';
+import { buildRouteGraph } from '@routing/graph';
+import { buildRoute } from '@routing/path';
+import type { Route } from '@routing/path';
 import { createUi } from '@ui/minimal';
 
 /**
@@ -136,6 +141,56 @@ function main(): void {
   const environment = createEnvironment(scene, { ...frame, footprint }, rendererHandle.renderer);
   const building = createBuilding(scene, source);
 
+  // Граф путей строится один раз: он зависит только от данных здания.
+  const routeGraph = buildRouteGraph(building.floors);
+  const elevations = new Map(building.floors.map((floor) => [floor.level, floor.elevation]));
+  const routeView = createRoute((level) => elevations.get(level) ?? 0);
+  scene.add(routeView.group);
+
+  /**
+   * Интерфейс появляется позже сцены, а маршрут считается уже в подписке:
+   * ссылка на него живёт в коробке, которую подписка читает во время вызова,
+   * а не при объявлении.
+   */
+  const uiRef: { current?: { showRoute: (route: Route | undefined) => void } } = {};
+  let shownRoute: Route | undefined;
+  /** Точка, которую передаём камере: одна на весь срок жизни сцены. */
+  const focusPoint = new Vector3();
+
+  /**
+   * Пересчитать маршрут. Считается он в одном месте — здесь, — а показывают
+   * его двое: сцена рисует ленту, интерфейс печатает шаги.
+   */
+  function updateRoute(state: SceneState): void {
+    const from = state.routeFromId;
+    const to = state.selectedRoomId;
+    shownRoute = from && to && from !== to ? buildRoute(routeGraph, from, to) : undefined;
+    routeView.show(shownRoute, state.mode === 'floor' ? state.activeFloor : null);
+    uiRef.current?.showRoute(shownRoute);
+  }
+
+  /** Подвести камеру под весь маршрут на текущем этаже. */
+  function frameShownRoute(state: SceneState): void {
+    if (!shownRoute) return;
+    const level = state.mode === 'floor' ? state.activeFloor : null;
+    const legs = shownRoute.legs.filter((leg) => level === null || leg.level === level);
+    const points = legs.flatMap((leg) => leg.points);
+    if (points.length === 0) return;
+    let x0 = Number.POSITIVE_INFINITY;
+    let x1 = Number.NEGATIVE_INFINITY;
+    let z0 = Number.POSITIVE_INFINITY;
+    let z1 = Number.NEGATIVE_INFINITY;
+    for (const point of points) {
+      x0 = Math.min(x0, point.x);
+      x1 = Math.max(x1, point.x);
+      z0 = Math.min(z0, point.z);
+      z1 = Math.max(z1, point.z);
+    }
+    const shownLevel = level ?? legs[0]?.level ?? 0;
+    focusPoint.set((x0 + x1) / 2, elevations.get(shownLevel) ?? 0, (z0 + z1) / 2);
+    cameraHandle.frameArea(focusPoint, (x1 - x0) / 2 + 6, (z1 - z0) / 2 + 6);
+  }
+
   const store = createSceneStore();
   store.subscribe((next, prev) => {
     building.applyState(next);
@@ -144,6 +199,14 @@ function main(): void {
     if (next.activeFloor !== null && next.activeFloor !== prev.activeFloor) {
       const floor = building.floors.find((item) => item.level === next.activeFloor);
       if (floor) cameraHandle.frameFloor(floor.elevation + floor.height / 2, floor.height);
+    }
+    if (
+      next.routeFromId !== prev.routeFromId ||
+      next.selectedRoomId !== prev.selectedRoomId ||
+      next.activeFloor !== prev.activeFloor ||
+      next.mode !== prev.mode
+    ) {
+      updateRoute(next);
     }
     // Кнопка «корпус целиком» возвращает и состояние, и ракурс: она снимает
     // выбранный этаж, помещение и подсветку разом, и это её единственный признак.
@@ -161,8 +224,7 @@ function main(): void {
   // начинаться с растворения верхних колец на глазах.
   building.applyState(store.state, true);
 
-  /** Точка, которую передаём камере: одна на весь срок жизни сцены. */
-  const focusPoint = new Vector3();
+
   const ui = createUi(overlayRoot, store, building, {
     // Кнопка «заглянуть внутрь» только подводит камеру. Раскрытие здания —
     // следствие близости камеры, а не отдельная команда сцене.
@@ -175,6 +237,12 @@ function main(): void {
     // а камера обязана отъехать — иначе здание останется раскрытым.
     home(): void {
       cameraHandle.home();
+    },
+    setRouteFrom(id: string | null): void {
+      // Сброс снимает и выбранное помещение: иначе карточка остаётся стоять
+      // с кнопкой «маршрут отсюда», как будто ничего не изменилось.
+      store.set(id === null ? { routeFromId: null } : { routeFromId: id });
+      updateRoute(store.state);
     },
     // Найденное помещение показывается целиком: его этаж, подсветка и кадр
     // вокруг него. Раньше выбрать помещение можно было только пальцем по
@@ -193,10 +261,17 @@ function main(): void {
         hoveredRoomId: null,
         isolate: false,
       });
+      // Если маршрут собрался, кадрируем его целиком, а не одну точку: иначе
+      // человек видит конец пути и не видит, откуда идти.
+      if (shownRoute) {
+        frameShownRoute(store.state);
+        return;
+      }
       focusPoint.set(target.focus.x, target.focus.y, target.focus.z);
       cameraHandle.frameRoom(focusPoint, ROOM_WINDOW);
     },
   });
+  uiRef.current = ui;
   const interaction = createInteraction({
     canvas: rendererHandle.renderer.domElement,
     camera: cameraHandle.camera,
@@ -233,6 +308,7 @@ function main(): void {
     interaction.dispose();
     ui.dispose();
     debug?.dispose();
+    routeView.dispose();
     building.dispose();
     environment.dispose();
     cameraHandle.dispose();

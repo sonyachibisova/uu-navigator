@@ -23,6 +23,7 @@
       "@core/*": ["src/core/*"],
       "@building/*": ["src/building/*"],
       "@interaction/*": ["src/interaction/*"],
+      "@routing/*": ["src/routing/*"],
       "@ui/*": ["src/ui/*"],
       "@nav/*": ["src/nav/*"],
       "@data/*": ["data/*"]

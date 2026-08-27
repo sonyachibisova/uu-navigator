@@ -14,6 +14,7 @@ export default defineConfig({
       '@core': fileURLToPath(new URL('./src/core', import.meta.url)),
       '@building': fileURLToPath(new URL('./src/building', import.meta.url)),
       '@interaction': fileURLToPath(new URL('./src/interaction', import.meta.url)),
+      '@routing': fileURLToPath(new URL('./src/routing', import.meta.url)),
       '@ui': fileURLToPath(new URL('./src/ui', import.meta.url)),
       '@nav': fileURLToPath(new URL('./src/nav', import.meta.url)),
       '@data': fileURLToPath(new URL('./data', import.meta.url)),
