@@ -34,6 +34,8 @@ export interface RouteStep {
 }
 
 export interface Route {
+  /** Построен ли маршрут в режиме «без лестниц». */
+  stepFree: boolean;
   /** Ломаные по этажам в порядке прохождения. */
   legs: RouteLeg[];
   steps: RouteStep[];
@@ -96,8 +98,18 @@ class MinHeap {
   }
 }
 
+export interface PathOptions {
+  /** Обходить лестницы: маршрут только по лифтам и ровному полу. */
+  stepFree?: boolean;
+}
+
 /** Найти цепочку узлов от `from` к `to`. Пустой массив — пути нет. */
-export function findPath(graph: RouteGraph, from: number, to: number): number[] {
+export function findPath(
+  graph: RouteGraph,
+  from: number,
+  to: number,
+  options: PathOptions = {},
+): number[] {
   const count = graph.nodes.length;
   if (from < 0 || to < 0 || from >= count || to >= count) return [];
   const best = new Float64Array(count).fill(Number.POSITIVE_INFINITY);
@@ -115,6 +127,7 @@ export function findPath(graph: RouteGraph, from: number, to: number): number[] 
     if (top.node === to) break;
     for (const edge of graph.edges[top.node] ?? []) {
       if (done[edge.to]) continue;
+      if (options.stepFree === true && edge.stairs === true) continue;
       const candidate = top.cost + edge.cost;
       if (candidate >= (best[edge.to] ?? Number.POSITIVE_INFINITY)) continue;
       best[edge.to] = candidate;
@@ -134,11 +147,16 @@ export function findPath(graph: RouteGraph, from: number, to: number): number[] 
 }
 
 /** Собрать маршрут между помещениями. `undefined` — пути нет. */
-export function buildRoute(graph: RouteGraph, fromId: string, toId: string): Route | undefined {
+export function buildRoute(
+  graph: RouteGraph,
+  fromId: string,
+  toId: string,
+  options: PathOptions = {},
+): Route | undefined {
   const from = graph.roomNode(fromId);
   const to = graph.roomNode(toId);
   if (from === undefined || to === undefined || from === to) return undefined;
-  const path = findPath(graph, from, to);
+  const path = findPath(graph, from, to, options);
   if (path.length < 2) return undefined;
 
   const nodes = path.map((index) => graph.nodes[index]).filter((node): node is GraphNode => !!node);
@@ -211,6 +229,7 @@ export function buildRoute(graph: RouteGraph, fromId: string, toId: string): Rou
   if (toName) steps.push({ text: `Вы на месте: ${toName}`, level: last?.level ?? 0 });
 
   return {
+    stepFree: options.stepFree === true,
     legs,
     steps,
     meters,

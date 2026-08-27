@@ -164,7 +164,15 @@ function main(): void {
   function updateRoute(state: SceneState): void {
     const from = state.routeFromId;
     const to = state.selectedRoomId;
-    shownRoute = from && to && from !== to ? buildRoute(routeGraph, from, to) : undefined;
+    // Если человек попросил маршрут без лестниц, а его нет, показывается
+    // обычный: молча отдать «пути нет» там, где путь есть, — обман.
+    // О подмене говорит карточка.
+    shownRoute = undefined;
+    if (from && to && from !== to) {
+      shownRoute =
+        buildRoute(routeGraph, from, to, { stepFree: state.stepFree }) ??
+        (state.stepFree ? buildRoute(routeGraph, from, to) : undefined);
+    }
     routeView.show(shownRoute, state.mode === 'floor' ? state.activeFloor : null);
     uiRef.current?.showRoute(shownRoute);
   }
@@ -202,6 +210,7 @@ function main(): void {
     }
     if (
       next.routeFromId !== prev.routeFromId ||
+      next.stepFree !== prev.stepFree ||
       next.selectedRoomId !== prev.selectedRoomId ||
       next.activeFloor !== prev.activeFloor ||
       next.mode !== prev.mode
@@ -237,6 +246,10 @@ function main(): void {
     // а камера обязана отъехать — иначе здание останется раскрытым.
     home(): void {
       cameraHandle.home();
+    },
+    setStepFree(value: boolean): void {
+      store.set({ stepFree: value });
+      updateRoute(store.state);
     },
     setRouteFrom(id: string | null): void {
       // Сброс снимает и выбранное помещение: иначе карточка остаётся стоять

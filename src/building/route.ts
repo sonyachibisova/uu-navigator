@@ -23,6 +23,15 @@ const WIDTH = 0.7;
  * Подписи начинаются с 2.5, так что места достаточно.
  */
 const LIFT = 0.36;
+/**
+ * Шаг между стрелками вдоль ленты, метры, и размер стрелки. Направление
+ * иначе не читается вовсе: лента одинаковая с обоих концов, и человек,
+ * посмотревший на неё без карточки, не знает, куда идти.
+ */
+const ARROW_STEP = 9;
+const ARROW_LENGTH = 1.6;
+const ARROW_HALF_WIDTH = 0.62;
+
 /** Порядок отрисовки: поверх плит, под подписями. */
 const RENDER_ORDER = 2;
 /** Цвет ленты. Тёплый и насыщенный: в интерьере таких нет, спутать не с чем. */
@@ -80,6 +89,10 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
     const positions: number[] = [];
     for (const leg of legs) {
       const y = elevationOf(leg.level) + LIFT;
+      // Стрелки расставляются по пройденному пути, а не по звеньям: иначе
+      // на длинном коридоре их не было бы вовсе, а на коротких — сплошняком.
+      let travelled = 0;
+      let nextArrow = ARROW_STEP / 2;
       for (let i = 1; i < leg.points.length; i += 1) {
         const from = leg.points[i - 1];
         const to = leg.points[i];
@@ -101,6 +114,30 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
         const ez = to.z + nz;
         positions.push(ax, y, az, bx, y, bz, cx, y, cz);
         positions.push(ax, y, az, cx, y, cz, ex, y, ez);
+
+        const ux = dx / length;
+        const uz = dz / length;
+        const arrowY = y + 0.01;
+        while (nextArrow <= travelled + length) {
+          const at = nextArrow - travelled;
+          const px = from.x + ux * at;
+          const pz = from.z + uz * at;
+          // Треугольник остриём вперёд: основание поперёк ленты, вершина
+          // на пол-шага дальше по ходу движения.
+          positions.push(px + ux * (ARROW_LENGTH / 2), arrowY, pz + uz * (ARROW_LENGTH / 2));
+          positions.push(
+            px - ux * (ARROW_LENGTH / 2) + -uz * ARROW_HALF_WIDTH,
+            arrowY,
+            pz - uz * (ARROW_LENGTH / 2) + ux * ARROW_HALF_WIDTH,
+          );
+          positions.push(
+            px - ux * (ARROW_LENGTH / 2) - -uz * ARROW_HALF_WIDTH,
+            arrowY,
+            pz - uz * (ARROW_LENGTH / 2) - ux * ARROW_HALF_WIDTH,
+          );
+          nextArrow += ARROW_STEP;
+        }
+        travelled += length;
       }
     }
 

@@ -104,6 +104,10 @@ const STYLE = `
 #ui-card .actions button.ghost { background: rgba(0,0,0,.08); color: #333; }
 #ui-card .route { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.1); }
 #ui-card .route .head { font-size: 13px; color: #143a8a; font-weight: 600; }
+#ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+#ui-card .route .mode button { height: 32px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: rgba(0,0,0,.08); color: #333; font: 600 12px system-ui, sans-serif; cursor: pointer; }
+#ui-card .route .mode button.on { background: #143a8a; color: #fff; }
 #ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 13px;
   line-height: 1.5; max-height: 148px; overflow-y: auto; }
 
@@ -179,6 +183,8 @@ export interface UiActions {
   showRoom: (id: string) => void;
   /** Запомнить точку отправления или забыть её (`null`). */
   setRouteFrom: (id: string | null) => void;
+  /** Переключить режим «без лестниц». */
+  setStepFree: (value: boolean) => void;
 }
 
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
@@ -471,8 +477,17 @@ export function createUi(
   routeBlock.hidden = true;
   const routeHead = document.createElement('div');
   routeHead.className = 'head';
+  const routeMode = document.createElement('div');
+  routeMode.className = 'mode';
+  const stepFreeButton = document.createElement('button');
+  stepFreeButton.type = 'button';
+  stepFreeButton.textContent = 'Без лестниц';
+  stepFreeButton.setAttribute('aria-pressed', 'false');
+  stepFreeButton.addEventListener('click', () => actions.setStepFree(!store.state.stepFree));
+  routeMode.appendChild(stepFreeButton);
+
   const routeSteps = document.createElement('ol');
-  routeBlock.append(routeHead, routeSteps);
+  routeBlock.append(routeHead, routeMode, routeSteps);
 
   routeFromButton.addEventListener('click', () => {
     const id = store.state.selectedRoomId;
@@ -638,9 +653,15 @@ export function createUi(
     const waiting = state.routeFromId !== null && !shownRoute;
     routeClearButton.hidden = state.routeFromId === null;
     routeFromButton.hidden = state.routeFromId !== null;
+    stepFreeButton.classList.toggle('on', state.stepFree);
+    stepFreeButton.setAttribute('aria-pressed', state.stepFree ? 'true' : 'false');
+    routeMode.hidden = state.routeFromId === null;
 
     if (shownRoute) {
       routeHead.textContent = `${shownRoute.fromName} → ${shownRoute.toName}: ${Math.round(shownRoute.meters)} м, ${shownRoute.minutes} мин`;
+      if (state.stepFree && !shownRoute.stepFree) {
+        routeHead.textContent += ' (без лестниц пути нет — показан обычный)';
+      }
       routeSteps.replaceChildren();
       for (const step of shownRoute.steps) {
         const item = document.createElement('li');

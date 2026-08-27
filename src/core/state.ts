@@ -28,6 +28,11 @@ export interface SceneState {
    */
   routeFromId: string | null;
   /**
+   * Строить маршрут без лестниц: только лифты и ровный пол. Это не настройка
+   * оформления, а другой маршрут, поэтому живёт в состоянии сцены.
+   */
+  stepFree: boolean;
+  /**
    * Режим «изолировать этаж»: невыбранные этажи скрываются полностью.
    * По умолчанию выключен — невыбранные этажи приглушаются, а не прячутся
    * (инвариант 7 правил проекта). Это отдельный явный режим, а не поведение.
@@ -89,6 +94,7 @@ export function createSceneStore(): Store<SceneState> {
     selectedRoomId: null,
     hoveredRoomId: null,
     routeFromId: null,
+    stepFree: false,
     isolate: false,
   });
 }
