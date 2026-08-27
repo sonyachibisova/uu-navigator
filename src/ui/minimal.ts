@@ -254,7 +254,8 @@ export function createUi(
     id: string;
     number: string;
     name: string;
-    level: number;
+    /** Где это: «4 этаж» или «этажи 4–5» у лестницы. */
+    where: string;
     haystackNumber: string;
     haystackName: string;
   }
@@ -271,11 +272,27 @@ export function createUi(
         id: room.id,
         number,
         name: room.name,
-        level: floor.level,
+        where: `${floor.level} этаж, ${building.passport.shortName}`,
         haystackNumber: normalize(number),
         haystackName: normalize(room.name),
       });
     }
+  }
+  // Лестницы и лифты ищутся наравне с помещениями: «где лестница» — такой же
+  // вопрос, как «где 4.09», и ответ на него человеку нужен чаще.
+  for (const place of building.verticalPlaces()) {
+    const levels = [...place.levels].sort((a, b) => a - b);
+    const first = levels[0] ?? place.level;
+    const last = levels[levels.length - 1] ?? place.level;
+    const where = levels.length > 1 ? `этажи ${first}–${last}` : `${first} этаж`;
+    searchItems.push({
+      id: place.id,
+      number: '',
+      name: place.name,
+      where: `${where}, ${building.passport.shortName}`,
+      haystackNumber: '',
+      haystackName: normalize(place.name),
+    });
   }
 
   /** Сколько находок показываем: больше — это уже не список, а простыня. */
@@ -377,7 +394,7 @@ export function createUi(
       title.append(item.name);
       const where = document.createElement('span');
       where.className = 'where';
-      where.textContent = `${item.level} этаж, ${building.passport.shortName}`;
+      where.textContent = item.where;
       line.append(title, where);
       line.addEventListener('click', () => chooseRoom(item.id));
       searchList.appendChild(line);

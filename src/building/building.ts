@@ -20,6 +20,7 @@ import { acquireSharedResources } from '@building/resources';
 import { createShell } from '@building/shell';
 import { ROOF_CHANNEL, createRoof } from '@building/roof';
 import { createFloors } from '@building/floors';
+import type { VerticalPlace } from '@building/floors';
 import type { BuildingPassport, BuildingSource, FloorView, RoomView } from '@building/source';
 import { passportCenter, passportRadius } from '@building/source';
 
@@ -56,6 +57,10 @@ export interface BuildingHandle {
    */
   update: (dt: number, cameraPosition: Vector3, overviewDistance: number) => boolean;
   roomById: (id: string) => RoomView | undefined;
+  /** Лестница или лифт по идентификатору: их ищут наравне с помещениями. */
+  verticalById: (id: string) => VerticalPlace | undefined;
+  /** Все лестницы и лифты здания. */
+  verticalPlaces: () => VerticalPlace[];
   /**
    * Кликабельные слои для raycasting. `level` — выбранный этаж; `null` означает
    * «здание целиком», и тогда кликабельны все этажи с известной планировкой:
@@ -196,6 +201,8 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
       return fade.consumeDirty();
     },
     roomById: floors.roomById,
+    verticalById: floors.verticalById,
+    verticalPlaces: floors.verticalPlaces,
     pickTargets(level): readonly PickLayer[] {
       if (level === null) return allPickLayers;
       return pickLayersByLevel.get(level) ?? NO_LAYERS;

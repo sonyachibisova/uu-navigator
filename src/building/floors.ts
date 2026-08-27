@@ -25,12 +25,24 @@ import { unitBox } from '@building/geometry';
 import { buildLabelLayer } from '@building/labels';
 import type { LabelLayer } from '@building/labels';
 import type { Palette } from '@building/materials';
-import type { FloorView, LabelSpec, RoomView } from '@building/source';
+import type { FloorView, LabelSpec, RoomView, Vec3 } from '@building/source';
 import type { FadeRegistry } from '@core/fade';
 
 /** Насколько высветляется плита под курсором и у выбранного помещения. */
 const HOVER_LIFT = 0.28;
 const SELECT_LIFT = 0.45;
+/**
+ * На сколько метров выбранная плита поднимается над планом.
+ *
+ * Одного осветления мало: человек, пришедший из поиска, не разглядывал план
+ * до этого и не знает, какой оттенок был у помещения секунду назад. Подъём
+ * читается сразу и в движении — плита выходит из плоскости, как клавиша.
+ * Величина взята заметно больше толщины плиты (0.06 м) и заметно меньше
+ * высоты перегородок (3.6 м), чтобы помещение не выглядело оторванным от
+ * этажа. Меньше метра с высоты птичьего полёта не читается вовсе: подъём
+ * в треть метра на дистанции в сотню метров — это два пикселя.
+ */
+const SELECT_RAISE = 1.2;
 /** Непрозрачность приглушённого этажа. */
 const DIMMED = 0.25;
 /** Белый для подсветки: константа модуля, а не аллокация на каждое помещение. */
@@ -46,11 +58,30 @@ export interface FloorInteriors {
   rooms: RoomView[];
 }
 
+/**
+ * Лестница или лифт так, как их видит поиск: где искать и куда смотреть.
+ * Помещением такая связь не является — карточки у неё нет, — но человеку,
+ * который ищет «лестницу», это ровно то же действие, что и поиск аудитории.
+ */
+export interface VerticalPlace {
+  id: string;
+  name: string;
+  /** Этаж, к которому ведём камеру: нижний из известных. */
+  level: number;
+  /** Все этажи, на которых связь есть: лестница живёт сразу на нескольких. */
+  levels: number[];
+  focus: Vec3;
+}
+
 export interface FloorsHandle {
   floorsGroup: Group;
   floors: FloorInteriors[];
   byLevel: (level: number) => FloorInteriors | undefined;
   roomById: (id: string) => RoomView | undefined;
+  /** Лестницы и лифты по идентификатору: их ищут наравне с помещениями. */
+  verticalById: (id: string) => VerticalPlace | undefined;
+  /** Все лестницы и лифты здания: список для поиска строится один раз. */
+  verticalPlaces: () => VerticalPlace[];
   /**
    * Расставить состояния этажей. `active` — выбранный этаж (`null` — здание
    * целиком), `isolate` — явный режим «показать только выбранный».
@@ -73,6 +104,8 @@ export interface FloorsHandle {
 interface PlateLayer {
   mesh: InstancedMesh;
   base: Color[];
+  /** Плиты в порядке `instanceId`: по ним пересчитывается матрица при подъёме. */
+  plates: RoomView['plate'][];
 }
 
 interface FloorLayer {
@@ -105,8 +138,10 @@ function buildPlates(floor: FloorView, palette: Palette, target: Group): PlateLa
   const scale = new Vector3();
   const rotation = new Quaternion();
   const base: Color[] = [];
+  const plates: RoomView['plate'][] = [];
 
   floor.rooms.forEach((room, index) => {
+    plates.push(room.plate);
     position.set(room.plate.center.x, room.plate.center.y, room.plate.center.z);
     scale.set(room.plate.width, 0.06, room.plate.depth);
     matrix.compose(position, rotation, scale);
@@ -120,7 +155,7 @@ function buildPlates(floor: FloorView, palette: Palette, target: Group): PlateLa
   mesh.computeBoundingBox();
   mesh.computeBoundingSphere();
   target.add(mesh);
-  return { mesh, base };
+  return { mesh, base, plates };
 }
 
 export function createFloors(
@@ -136,6 +171,7 @@ export function createFloors(
   const batched: InstancedMesh[] = [];
   const labelLayers: LabelLayer[] = [];
   const roomIndex = new Map<string, RoomView>();
+  const verticalIndex = new Map<string, VerticalPlace>();
   const slots = new Map<string, { layer: PlateLayer; index: number }>();
 
   for (const view of views) {
@@ -172,6 +208,28 @@ export function createFloors(
       }
       for (const link of view.vertical) {
         if (link.label) labelSpecs.push(link.label);
+        // Точка, к которой ведём камеру: подпись связи, а если её нет —
+        // середина габарита на высоте роста над полом этажа.
+        const focus = link.label?.position ?? {
+          x: (link.bounds.x0 + link.bounds.x1) / 2,
+          y: view.elevation + 1.6,
+          z: (link.bounds.z0 + link.bounds.z1) / 2,
+        };
+        // Одна и та же лестница объявлена на каждом своём этаже. В поиске она
+        // одна: запоминаем нижний известный этаж и туда же ведём камеру,
+        // а остальные этажи копим, чтобы показать человеку размах связи.
+        const seen = verticalIndex.get(link.id);
+        if (seen) {
+          if (!seen.levels.includes(view.level)) seen.levels.push(view.level);
+        } else {
+          verticalIndex.set(link.id, {
+            id: link.id,
+            name: link.name,
+            level: view.level,
+            levels: [view.level],
+            focus,
+          });
+        }
       }
     }
 
@@ -259,8 +317,26 @@ export function createFloors(
   }
 
   const tint = new Color();
+  const raiseMatrix = new Matrix4();
+  const raisePosition = new Vector3();
+  const raiseScale = new Vector3();
+  const raiseRotation = new Quaternion();
   let lastHovered: string | null = null;
   let lastSelected: string | null = null;
+
+  /** Поднять или вернуть плиту на место. Возвращает слой, чтобы пометить его. */
+  function raise(id: string | null, height: number): PlateLayer | undefined {
+    if (!id) return undefined;
+    const slot = slots.get(id);
+    if (!slot) return undefined;
+    const plate = slot.layer.plates[slot.index];
+    if (!plate) return undefined;
+    raisePosition.set(plate.center.x, plate.center.y + height, plate.center.z);
+    raiseScale.set(plate.width, 0.06, plate.depth);
+    raiseMatrix.compose(raisePosition, raiseRotation, raiseScale);
+    slot.layer.mesh.setMatrixAt(slot.index, raiseMatrix);
+    return slot.layer;
+  }
 
   /** Перекрасить одну плиту. Возвращает слой, чтобы пометить его изменившимся. */
   function paint(id: string | null, lift: number): PlateLayer | undefined {
@@ -286,8 +362,14 @@ export function createFloors(
         if (layer) touched.add(layer);
       }
     }
+    if (lastSelected && lastSelected !== selectedId) {
+      const dropped = raise(lastSelected, 0);
+      if (dropped) touched.add(dropped);
+    }
     const selectedLayer = paint(selectedId, SELECT_LIFT);
     if (selectedLayer) touched.add(selectedLayer);
+    const raisedLayer = raise(selectedId, SELECT_RAISE);
+    if (raisedLayer) touched.add(raisedLayer);
     if (hoveredId && hoveredId !== selectedId) {
       const hoveredLayer = paint(hoveredId, HOVER_LIFT);
       if (hoveredLayer) touched.add(hoveredLayer);
@@ -296,6 +378,7 @@ export function createFloors(
     lastSelected = selectedId;
     for (const layer of touched) {
       if (layer.mesh.instanceColor) layer.mesh.instanceColor.needsUpdate = true;
+      layer.mesh.instanceMatrix.needsUpdate = true;
     }
   }
 
@@ -304,6 +387,8 @@ export function createFloors(
     floors,
     byLevel: (level) => floors.find((floor) => floor.level === level),
     roomById: (id) => roomIndex.get(id),
+    verticalById: (id) => verticalIndex.get(id),
+    verticalPlaces: () => [...verticalIndex.values()],
     setStates,
     highlight,
     dispose(): void {
@@ -319,6 +404,7 @@ export function createFloors(
       layers.length = 0;
       slots.clear();
       roomIndex.clear();
+      verticalIndex.clear();
       floors.length = 0;
       floorsGroup.removeFromParent();
       floorsGroup.clear();

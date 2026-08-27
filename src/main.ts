@@ -181,15 +181,19 @@ function main(): void {
     // модели — то есть только то, которое человек и так уже нашёл глазами.
     showRoom(id: string): void {
       const room = building.roomById(id);
-      if (!room) return;
+      // Лестница и лифт помещением не являются: карточки у них нет и
+      // подсвечивать нечего — им отдаётся этаж и кадр, и этого достаточно.
+      const place = room ? undefined : building.verticalById(id);
+      const target = room ?? place;
+      if (!target) return;
       store.set({
         mode: 'floor',
-        activeFloor: room.floor,
-        selectedRoomId: id,
+        activeFloor: room ? room.floor : (place?.level ?? null),
+        selectedRoomId: room ? id : null,
         hoveredRoomId: null,
         isolate: false,
       });
-      focusPoint.set(room.focus.x, room.focus.y, room.focus.z);
+      focusPoint.set(target.focus.x, target.focus.y, target.focus.z);
       cameraHandle.frameRoom(focusPoint, ROOM_WINDOW);
     },
   });
