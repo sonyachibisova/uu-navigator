@@ -31,8 +31,13 @@
  *    расстояние до точки остаётся большим, и переход не срабатывает вовсе;
  *  — дальняя стена остаётся: у неё скалярное произведение отрицательно.
  *    Без этого интерьер повисает в пустоте и перестаёт читаться;
- *  — кровля управляется отдельной величиной — углом взгляда к горизонту.
- *    При взгляде сбоку она остаётся, иначе здание теряет силуэт;
+ *  — кровля уходит вместе с раскрытием, а не по отдельному условию. Раньше её
+ *    вёл угол взгляда к горизонту: при взгляде сбоку она оставалась, чтобы
+ *    здание не теряло силуэт. На практике это давало третье независимое
+ *    правило, которое человек не мог предсказать: он подходил вплотную,
+ *    стена растворялась, а сверху оставалась плёнка кровли, и верхний этаж
+ *    не показывался. Решение владельца: приблизился — кровля снята всегда,
+ *    и виден верхний этаж (в режиме этажа — выбранный);
  *  — у каждой границы разные пороги на вход и на выход. Без гистерезиса
  *    на дрожащем пальце состояние мигает: величина ходит вокруг порога,
  *    материал каждый кадр входит в переход и выходит из него;
@@ -67,16 +72,6 @@ export const DISTANCE_FULL = 0.55;
 const FACING_ENTER = 0.08;
 const FACING_EXIT = 0.02;
 const FACING_FULL = 0.35;
-
-/** Угол взгляда к горизонту, градусы: выше — кровля уходит. */
-const ROOF_ENTER = 26;
-const ROOF_EXIT = 20;
-/**
- * Угол, выше которого кровля снята полностью. Экспортируется по той же причине,
- * что и `DISTANCE_FULL`: подлёт в `src/core/camera.ts` обязан поднимать камеру
- * не ниже этого угла, иначе над верхним этажом остаётся плёнка кровли.
- */
-export const ROOF_FULL = 48;
 
 /** Скорость сглаживания степени раскрытия: λ в `damp`. */
 const LAMBDA = 10;
@@ -149,7 +144,10 @@ export interface DollhouseHandle {
    * по-прежнему решает, какая именно грань растворяется.
    */
   facing: (index: number) => number;
-  /** Насколько ушла кровля: 0 — на месте, 1 — снята. */
+  /**
+   * Насколько ушла кровля: 0 — на месте, 1 — снята. Совпадает с `openness`:
+   * отдельного условия у кровли нет, приблизился — снята.
+   */
   roofLift: () => number;
 }
 
@@ -197,7 +195,6 @@ export function createDollhouse(
   const toCamera = new Vector3();
   let open = false;
   let openness = 0;
-  let roofOpen = false;
   let roofLift = 0;
 
   return {
@@ -218,14 +215,8 @@ export function createDollhouse(
       const target = open ? 1 - MathUtils.smoothstep(distance, DISTANCE_FULL, DISTANCE_EXIT) : 0;
       openness = quantize(instant ? target : MathUtils.damp(openness, target, LAMBDA, dt));
 
-      // Кровля — отдельный канал: её ведёт угол взгляда к горизонту, а не близость.
-      const length = toCamera.length();
-      const elevation =
-        length > HORIZONTAL_EPS ? MathUtils.radToDeg(Math.asin(toCamera.y / length)) : 90;
-      roofOpen = roofOpen ? elevation >= ROOF_EXIT : elevation > ROOF_ENTER;
-      roofLift = roofOpen
-        ? quantize(openness * MathUtils.smoothstep(elevation, ROOF_EXIT, ROOF_FULL))
-        : 0;
+      // Кровля идёт за раскрытием один в один: своего условия у неё больше нет.
+      roofLift = openness;
 
       for (const state of states) {
         toCamera.subVectors(cameraPosition, state.fragment.center);
