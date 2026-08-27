@@ -57,6 +57,13 @@ const FLIGHT_LAMBDA = 4.2;
  * чистым выбором ракурса: сверху виден план, но ракурс не становится отвесным.
  */
 const REVEAL_ELEVATION = 52;
+/**
+ * Подъём над горизонтом при показе выбранного этажа, градусы. Ниже плана не
+ * видно: ближняя стена начинает съедать первый ряд помещений. Отвесно тоже
+ * нельзя — пропадает объём, и человек перестаёт понимать, что смотрит на этаж
+ * здания, а не на чертёж.
+ */
+const FLOOR_ELEVATION = 56;
 const REVEAL_DISTANCE_FACTOR = DISTANCE_FULL - 0.03;
 /** Ниже горизонта камера не опускается: под землёй смотреть не на что. */
 const MAX_POLAR = MathUtils.degToRad(85);
@@ -78,6 +85,13 @@ export interface CameraHandle {
   update: (dt: number) => void;
   /** Задать новую точку интереса (клик по помещению). */
   lookAt: (point: Vector3) => void;
+  /**
+   * Подвести камеру к выбранному этажу: кадр строится по плите этажа, а не по
+   * всему зданию. Без этого после нажатия на этаж камера оставалась в рамке
+   * общего вида, рассчитанной на здание вместе с высотой, и план занимал
+   * четверть кадра. Поворот в плане сохраняется — человек не теряет, куда смотрел.
+   */
+  frameFloor: (centerY: number, thickness: number) => void;
   /** Вернуть камеру и точку интереса к стартовой рамке с анимацией. */
   home: () => void;
   /**
@@ -214,6 +228,10 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
   const goal = homeTarget.clone();
   const shift = new Vector3();
   const offset = new Vector3();
+  /** Направление «от цели к камере» для перелётов: без аллокации на каждый вызов. */
+  const flightDirection = new Vector3();
+  /** Полуразмеры кадрируемого объёма: тот же вектор переиспользуется. */
+  const flightHalf = new Vector3();
   /** Человек попросил без анимации: перелёты применяются сразу, результат тот же. */
   const instant = prefersReducedMotion();
   let lastAspect = camera.aspect;
@@ -295,6 +313,26 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
         return;
       }
       focusing = true;
+    },
+    frameFloor(centerY: number, thickness: number): void {
+      updateHomeFrame();
+      offset.subVectors(camera.position, controls.target);
+      const azimuth = Math.atan2(offset.x, offset.z);
+      const elevation = MathUtils.degToRad(FLOOR_ELEVATION);
+      const flat = Math.cos(elevation);
+      flightDirection.set(Math.sin(azimuth) * flat, Math.sin(elevation), Math.cos(azimuth) * flat);
+      // Кадрируется плита этажа: габарит в плане тот же, а высота — своя,
+      // и именно она раньше отбрасывала камеру на дистанцию всего здания.
+      flightHalf.set(half.x, Math.max(thickness, 0.5) / 2, half.z);
+      const distance = MathUtils.clamp(
+        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        controls.minDistance * 1.2,
+        controls.maxDistance * 0.9,
+      );
+      goal.set(homeTarget.x, centerY, homeTarget.z);
+      flightPosition.copy(flightDirection).multiplyScalar(distance).add(goal);
+      touched = true;
+      startFlight();
     },
     home(): void {
       updateHomeFrame();

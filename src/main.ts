@@ -132,6 +132,12 @@ function main(): void {
   const store = createSceneStore();
   store.subscribe((next, prev) => {
     building.applyState(next);
+    // Выбран этаж — камера кадрирует именно его. Рамка общего вида считается
+    // по зданию вместе с высотой, и в ней план этажа занимает четверть экрана.
+    if (next.activeFloor !== null && next.activeFloor !== prev.activeFloor) {
+      const floor = building.floors.find((item) => item.level === next.activeFloor);
+      if (floor) cameraHandle.frameFloor(floor.elevation + floor.height / 2, floor.height);
+    }
     // Кнопка «корпус целиком» возвращает и состояние, и ракурс: она снимает
     // выбранный этаж, помещение и подсветку разом, и это её единственный признак.
     // Признак опирается только на срез по этажу: снятие выбранного помещения

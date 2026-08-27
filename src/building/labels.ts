@@ -12,6 +12,15 @@
  * добавляются уже там — поэтому подпись всегда смотрит в экран и сохраняет
  * размер в метрах, как раньше.
  *
+ * Подпись живёт в двух видах, и это главное, ради чего затевался атлас.
+ * Стометровый корпус целиком не помещается в кадр так, чтобы подпись высотой
+ * 1.7 м была читаемой: на плане этажа она выходит около двенадцати пикселей.
+ * Поэтому у каждой подписи два экземпляра — крупный номер и номер с названием,
+ * — и они сменяют друг друга по экранному размеру: издалека не показывается
+ * ничего, ближе проступают номера, вплотную — номера с названиями. Человек,
+ * который ищет 4.09, видит именно номера тогда, когда они ещё читаются.
+ * Экземпляры ничего не стоят: draw call у слоя по-прежнему один.
+ *
  * Материал — подкласс `MeshBasicMaterial`, а не `onBeforeCompile` на готовом
  * инстансе, намеренно: `FadeRegistry` клонирует материал при регистрации,
  * а `Material.clone()` не переносит собственные свойства объекта. Метод
@@ -26,7 +35,6 @@ import {
   MeshBasicMaterial,
   PlaneGeometry,
   SRGBColorSpace,
-  Vector3,
 } from 'three';
 import type { Object3D, WebGLProgramParametersWithUniforms } from 'three';
 import type { LabelSpec } from '@building/source';
@@ -46,19 +54,45 @@ const FONT = 'Arial, Helvetica, sans-serif';
 const ATLAS_WIDTH = 1024;
 /** Зазор между плитками: без него соседняя подпись подмешивается по краю. */
 const GAP = 2;
-/** Высота подписи в метрах: двухстрочная крупнее однострочной, как в прототипе. */
-const TWO_LINE_HEIGHT = 1.7;
-const ONE_LINE_HEIGHT = 1.0;
 /** Порядок отрисовки: подписи поверх плит и перегородок. */
 const RENDER_ORDER = 3;
 
-interface Tile {
+/**
+ * Высота подписи в метрах. Крупная — только номер: он обязан читаться на плане
+ * этажа целиком, поэтому берётся заметно больше прежнего. Полная — номер плюс
+ * название, размер прежний, как в прототипе; однострочная — всё остальное.
+ */
+const NUMBER_HEIGHT = 3.6;
+const FULL_HEIGHT = 1.7;
+const SINGLE_HEIGHT = 1.2;
+
+/**
+ * Пороги смены вида, в долях высоты экрана. Порог задан долей экрана, а не
+ * пикселями, — тогда он одинаков на телефоне и на мониторе и не требует
+ * уносить в шейдер размер окна (а заодно переживает клонирование материала
+ * в `FadeRegistry`). Ниже нижнего порога не показывается ничего: мелкие
+ * названия наезжают друг на друга и читаются как сор.
+ */
+const NUMBER_IN = [0.014, 0.02] as const;
+/**
+ * Порог полной подписи задан в её собственных долях экрана. Номер крупнее,
+ * значит на том же расстоянии его доля больше — его порог ухода пересчитывается
+ * отношением высот, иначе виды разъезжаются: номер уходит не там, где название
+ * приходит, и на переходе не остаётся ни того, ни другого.
+ */
+const FULL_IN = [0.028, 0.036] as const;
+
+interface Entry {
   canvas: HTMLCanvasElement;
+  /** Высота подписи в метрах. */
   height: number;
+  position: { x: number; y: number; z: number };
+  /** Пороги проявления и ухода: `[появиться от, до, уйти от, до]`, ноль — не уходит. */
+  range: [number, number, number, number];
 }
 
 /** Нарисовать одну подпись на отдельном холсте. Размер холста — по тексту. */
-function drawTile(title: string, subtitle: string): Tile | undefined {
+function drawTile(title: string, subtitle: string): HTMLCanvasElement | undefined {
   const measure = document.createElement('canvas').getContext('2d');
   let titleWidth = 0;
   let subtitleWidth = 0;
@@ -91,13 +125,54 @@ function drawTile(title: string, subtitle: string): Tile | undefined {
       ctx.fillText(subtitle, canvas.width / 2, y);
     }
   }
-  return { canvas, height: title && subtitle ? TWO_LINE_HEIGHT : ONE_LINE_HEIGHT };
+  return canvas;
+}
+
+/** Развернуть одну подпись в экземпляры: крупный номер и номер с названием. */
+function entriesOf(spec: LabelSpec): Entry[] {
+  const out: Entry[] = [];
+  const both = Boolean(spec.title) && Boolean(spec.subtitle);
+
+  if (spec.title) {
+    const canvas = drawTile(spec.title, '');
+    if (canvas) {
+      out.push({
+        canvas,
+        height: both ? NUMBER_HEIGHT : SINGLE_HEIGHT,
+        position: spec.position,
+        // Номер уходит только там, где его сменяет полная подпись.
+        range: both
+          ? [
+              NUMBER_IN[0],
+              NUMBER_IN[1],
+              (FULL_IN[0] * NUMBER_HEIGHT) / FULL_HEIGHT,
+              (FULL_IN[1] * NUMBER_HEIGHT) / FULL_HEIGHT,
+            ]
+          : [NUMBER_IN[0], NUMBER_IN[1], 0, 0],
+      });
+    }
+  }
+
+  if (spec.subtitle) {
+    const canvas = drawTile(spec.title, spec.subtitle);
+    if (canvas) {
+      out.push({
+        canvas,
+        height: both ? FULL_HEIGHT : SINGLE_HEIGHT,
+        position: spec.position,
+        range: both ? [FULL_IN[0], FULL_IN[1], 0, 0] : [NUMBER_IN[0], NUMBER_IN[1], 0, 0],
+      });
+    }
+  }
+
+  return out;
 }
 
 /**
- * Материал подписей: разворот к камере и выборка из атласа.
+ * Материал подписей: разворот к камере, выборка из атласа и смена вида
+ * по экранному размеру.
  *
- * Оба куска шейдера маленькие, но заменяют собой `Sprite`: именно из-за него
+ * Куски шейдера маленькие, но заменяют собой `Sprite`: именно из-за него
  * подпись была отдельным мешем. `customProgramCacheKey` обязателен — иначе
  * рендерер переиспользует программу обычного `MeshBasicMaterial`.
  */
@@ -109,7 +184,9 @@ class LabelMaterial extends MeshBasicMaterial {
         `#include <common>
 attribute vec2 aSize;
 attribute vec4 aUvRect;
-varying vec2 vAtlasUv;`,
+attribute vec4 aRange;
+varying vec2 vAtlasUv;
+varying float vLabelAlpha;`,
       )
       .replace(
         '#include <project_vertex>',
@@ -118,31 +195,41 @@ varying vec2 vAtlasUv;`,
   mvPosition = instanceMatrix * mvPosition;
 #endif
 mvPosition = modelViewMatrix * mvPosition;
+// Какую долю высоты экрана займёт подпись: по ней она и проявляется.
+float screenFraction = 0.5 * aSize.y * projectionMatrix[1][1] / max( -mvPosition.z, 1e-4 );
+float appear = smoothstep( aRange.x, aRange.y, screenFraction );
+float vanish = aRange.z > 0.0 ? 1.0 - smoothstep( aRange.z, aRange.w, screenFraction ) : 1.0;
+vLabelAlpha = appear * vanish;
 // Углы прибавляются уже в пространстве камеры: четырёхугольник всегда
-// параллелен экрану, а его размер остаётся размером в метрах.
-mvPosition.xy += position.xy * aSize;
+// параллелен экрану, а его размер остаётся размером в метрах. Погашенная
+// подпись схлопывается в точку — она не доходит до растеризации вовсе.
+mvPosition.xy += position.xy * aSize * step( 0.001, vLabelAlpha );
 gl_Position = projectionMatrix * mvPosition;
 vAtlasUv = aUvRect.xy + uv * aUvRect.zw;`,
       );
 
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec2 vAtlasUv;`)
+      .replace(
+        '#include <common>',
+        `#include <common>\nvarying vec2 vAtlasUv;\nvarying float vLabelAlpha;`,
+      )
       .replace(
         '#include <map_fragment>',
         `#ifdef USE_MAP
   diffuseColor *= texture2D( map, vAtlasUv );
+  diffuseColor.a *= vLabelAlpha;
 #endif`,
       );
   }
 
   override customProgramCacheKey(): string {
-    return 'label-atlas-billboard';
+    return 'label-atlas-billboard-lod';
   }
 }
 
 export interface LabelLayer {
   mesh: InstancedMesh;
-  /** Сколько подписей в слое: нужно замеру и тестам. */
+  /** Сколько экземпляров в слое: нужно замеру и тестам. */
   count: number;
   dispose: () => void;
 }
@@ -156,13 +243,12 @@ export function buildLabelLayer(
   name: string,
   target: Object3D,
 ): LabelLayer | undefined {
-  const drawn: { spec: LabelSpec; tile: Tile }[] = [];
+  const entries: Entry[] = [];
   for (const spec of specs) {
     if (!spec.title && !spec.subtitle) continue;
-    const tile = drawTile(spec.title, spec.subtitle);
-    if (tile) drawn.push({ spec, tile });
+    entries.push(...entriesOf(spec));
   }
-  if (drawn.length === 0) return undefined;
+  if (entries.length === 0) return undefined;
 
   // Раскладка полками: плитки идут слева направо, пока помещаются в ширину
   // атласа, потом переносятся на новую полку высотой в самую высокую плитку.
@@ -170,9 +256,9 @@ export function buildLabelLayer(
   let penX = GAP;
   let penY = GAP;
   let shelfHeight = 0;
-  for (const item of drawn) {
-    const w = item.tile.canvas.width;
-    const h = item.tile.canvas.height;
+  for (const entry of entries) {
+    const w = entry.canvas.width;
+    const h = entry.canvas.height;
     if (penX + w + GAP > ATLAS_WIDTH && penX > GAP) {
       penX = GAP;
       penY += shelfHeight + GAP;
@@ -182,16 +268,15 @@ export function buildLabelLayer(
     penX += w + GAP;
     if (h > shelfHeight) shelfHeight = h;
   }
-  const atlasHeight = penY + shelfHeight + GAP;
 
   const atlas = document.createElement('canvas');
   atlas.width = ATLAS_WIDTH;
-  atlas.height = atlasHeight;
+  atlas.height = penY + shelfHeight + GAP;
   const ctx = atlas.getContext('2d');
   if (ctx) {
-    drawn.forEach((item, index) => {
+    entries.forEach((entry, index) => {
       const box = placed[index];
-      if (box) ctx.drawImage(item.tile.canvas, box.x, box.y);
+      if (box) ctx.drawImage(entry.canvas, box.x, box.y);
     });
   }
 
@@ -204,7 +289,7 @@ export function buildLabelLayer(
 
   const material = new LabelMaterial({ map: texture, transparent: true, depthWrite: false });
   const geometry = new PlaneGeometry(1, 1);
-  const mesh = new InstancedMesh(geometry, material, drawn.length);
+  const mesh = new InstancedMesh(geometry, material, entries.length);
   mesh.name = name;
   mesh.renderOrder = RENDER_ORDER;
   mesh.castShadow = false;
@@ -213,36 +298,38 @@ export function buildLabelLayer(
   // геометрия, и отсечение по пирамиде видимости выбросило бы слой целиком.
   mesh.frustumCulled = false;
 
-  const sizes = new Float32Array(drawn.length * 2);
-  const rects = new Float32Array(drawn.length * 4);
+  const sizes = new Float32Array(entries.length * 2);
+  const rects = new Float32Array(entries.length * 4);
+  const ranges = new Float32Array(entries.length * 4);
   const matrix = new Matrix4();
-  const position = new Vector3();
 
-  drawn.forEach((item, index) => {
+  entries.forEach((entry, index) => {
     const box = placed[index];
     if (!box) return;
-    position.set(item.spec.position.x, item.spec.position.y, item.spec.position.z);
-    matrix.makeTranslation(position.x, position.y, position.z);
+    matrix.makeTranslation(entry.position.x, entry.position.y, entry.position.z);
     mesh.setMatrixAt(index, matrix);
 
     const aspect = box.w / Math.max(box.h, 1);
-    sizes[index * 2] = item.tile.height * aspect;
-    sizes[index * 2 + 1] = item.tile.height;
+    sizes[index * 2] = entry.height * aspect;
+    sizes[index * 2 + 1] = entry.height;
 
     rects[index * 4] = box.x / atlas.width;
     rects[index * 4 + 1] = 1 - (box.y + box.h) / atlas.height;
     rects[index * 4 + 2] = box.w / atlas.width;
     rects[index * 4 + 3] = box.h / atlas.height;
+
+    ranges.set(entry.range, index * 4);
   });
   mesh.instanceMatrix.needsUpdate = true;
   geometry.setAttribute('aSize', new InstancedBufferAttribute(sizes, 2));
   geometry.setAttribute('aUvRect', new InstancedBufferAttribute(rects, 4));
+  geometry.setAttribute('aRange', new InstancedBufferAttribute(ranges, 4));
 
   target.add(mesh);
 
   return {
     mesh,
-    count: drawn.length,
+    count: entries.length,
     dispose(): void {
       mesh.removeFromParent();
       mesh.dispose();
