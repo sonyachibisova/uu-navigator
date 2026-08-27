@@ -22,7 +22,8 @@
 import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import { PartBatcher, disposeBatched } from '@building/batch';
 import { unitBox } from '@building/geometry';
-import { LabelFactory } from '@building/labels';
+import { buildLabelLayer } from '@building/labels';
+import type { LabelLayer } from '@building/labels';
 import type { Palette } from '@building/materials';
 import type { FloorView, LabelSpec, RoomView } from '@building/source';
 import type { FadeRegistry } from '@core/fade';
@@ -133,7 +134,7 @@ export function createFloors(
   const layers: FloorLayer[] = [];
   const floors: FloorInteriors[] = [];
   const batched: InstancedMesh[] = [];
-  const labels = new LabelFactory();
+  const labelLayers: LabelLayer[] = [];
   const roomIndex = new Map<string, RoomView>();
   const slots = new Map<string, { layer: PlateLayer; index: number }>();
 
@@ -194,16 +195,18 @@ export function createFloors(
   }
 
   /**
-   * Создать подписи этажа. Делается при первом показе этажа: до первого кадра
-   * не растеризуется ни одна текстура подписи, которую человек ещё не увидел.
+   * Создать подписи этажа. Делается при первом показе: до первого кадра не
+   * растеризуется ни один атлас, который человек ещё не увидел. Весь этаж —
+   * один меш и один draw call, поэтому подписи можно держать включёнными
+   * не только на выбранном этаже.
    */
   function ensureLabels(layer: FloorLayer): void {
     if (layer.labelsBuilt) return;
     layer.labelsBuilt = true;
-    for (const spec of layer.labelSpecs) {
-      const sprite = labels.create(spec, layer.group);
-      if (sprite) fade.add(sprite, layer.labelChannel, 0);
-    }
+    const built = buildLabelLayer(layer.labelSpecs, layer.labelChannel, layer.group);
+    if (!built) return;
+    labelLayers.push(built);
+    fade.add(built.mesh, layer.labelChannel, 0);
   }
 
   function setStates(
@@ -236,10 +239,11 @@ export function createFloors(
         target = DIMMED;
       }
 
-      // Подписи читаются только на выбранном этаже: на приглушённом и в
-      // раскрытом здании целиком они превращаются в шум и стоят по draw call
-      // каждая. Поэтому и создаются они только для выбранного этажа.
-      const labelTarget = layer.level === active ? 1 : 0;
+      // Подписи этажа стоят один draw call на этаж, поэтому включаются везде,
+      // где человек видит план: на выбранном этаже — целиком, в режиме
+      // «здание целиком» — вместе с раскрытием, как и сами интерьеры.
+      // На приглушённом этаже подписей нет: там они читались бы как шум.
+      const labelTarget = active === null ? openness : layer.level === active ? 1 : 0;
       if (labelTarget > 0) ensureLabels(layer);
 
       if (immediate) {
@@ -303,7 +307,8 @@ export function createFloors(
     setStates,
     highlight,
     dispose(): void {
-      labels.dispose();
+      for (const layer of labelLayers) layer.dispose();
+      labelLayers.length = 0;
       disposeBatched(batched);
       batched.length = 0;
       for (const layer of layers) {

@@ -1,6 +1,7 @@
 /**
- * Общие ресурсы движка: unit-геометрия, процедурные текстуры, кэш подписей
- * и кэш вывесок. Они живут в модулях и переживают отдельное здание.
+ * Общие ресурсы движка: unit-геометрия, процедурные текстуры и кэш вывесок.
+ * Они живут в модулях и переживают отдельное здание. Подписи в этот список
+ * не входят: с переходом на атлас этаж владеет своим, и освобождает его слой.
  *
  * Отсюда единственная точка правды об их времени жизни. Здание, которому они
  * нужны, берёт ссылку при сборке и отдаёт при разборе; освобождаются они, когда
@@ -9,7 +10,6 @@
  * а горизонт проекта заявлен на пять корпусов и больше.
  */
 import { disposeSharedGeometry } from '@building/geometry';
-import { disposeLabelCache } from '@building/labels';
 import { disposeSharedTextures } from '@building/materials';
 import { disposeSignCache } from '@building/signs';
 
@@ -25,7 +25,6 @@ export function acquireSharedResources(): () => void {
     holders -= 1;
     if (holders > 0) return;
     holders = 0;
-    disposeLabelCache();
     disposeSignCache();
     disposeSharedTextures();
     disposeSharedGeometry();
