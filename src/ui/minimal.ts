@@ -1,5 +1,6 @@
 /**
- * Минимальный интерфейс: панель этажей, карточка помещения, легенда, подсказка.
+ * Минимальный интерфейс: поиск, панель этажей, карточка помещения, легенда,
+ * подсказка.
  *
  * Верстается от телефона в портрете: важное — в нижней трети экрана, куда
  * достаёт большой палец, панели не перекрывают друг друга и не перехватывают
@@ -54,11 +55,35 @@ const STYLE = `
   --gap-l: max(10px, env(safe-area-inset-left, 0px)); }
 
 /* Жест принадлежит сцене: перехватывают его только кнопки и раскрытая легенда. */
-#ui-root button { pointer-events: auto; touch-action: manipulation; }
+#ui-root button, #ui-root input { pointer-events: auto; touch-action: manipulation; }
 #ui-root button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 #ui-root [hidden] { display: none; }
 
-#ui-hint { position: absolute; z-index: 1; top: var(--gap-t); left: var(--gap-l); right: var(--gap-r);
+/* Поиск — первое, что видит человек: он приходит с вопросом «где 4.09»,
+   а не разглядывать здание. Поэтому он вверху, над подсказкой. */
+#ui-search { position: absolute; z-index: 5; top: var(--gap-t);
+  left: var(--gap-l); right: var(--gap-r); }
+#ui-search .field { pointer-events: auto; display: flex; align-items: center; gap: 8px;
+  box-sizing: border-box; height: 44px; padding: 0 6px 0 12px; border-radius: 12px;
+  background: rgba(255,255,255,.95); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+#ui-search input { flex: 1; min-width: 0; height: 40px; border: 0; background: none; color: #111;
+  font: 400 15px system-ui, sans-serif; }
+#ui-search input::placeholder { color: #8a8a8a; }
+#ui-search input:focus { outline: none; }
+#ui-search .clear { width: 36px; height: 36px; border: 0; border-radius: 10px; background: none;
+  color: #6b6b6b; font: 400 18px/1 system-ui, sans-serif; cursor: pointer; }
+#ui-search .list { pointer-events: auto; margin-top: 6px; overflow-y: auto; border-radius: 12px;
+  max-height: min(44vh, 320px); background: rgba(255,255,255,.97);
+  box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+#ui-search .list button { display: block; width: 100%; box-sizing: border-box; text-align: left;
+  padding: 9px 12px; border: 0; border-bottom: 1px solid rgba(0,0,0,.07); border-radius: 0;
+  background: none; color: #111; font: 400 14px system-ui, sans-serif; cursor: pointer; }
+#ui-search .list button:last-child { border-bottom: 0; }
+#ui-search .list button b { margin-right: 6px; color: #143a8a; }
+#ui-search .list button .where { display: block; color: #6b6b6b; font-size: 12px; }
+#ui-search .empty { padding: 10px 12px; color: #6b6b6b; font-size: 13px; }
+
+#ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 54px); left: var(--gap-l); right: var(--gap-r);
   box-sizing: border-box; min-height: 44px; padding: 10px 52px 10px 12px; border-radius: 10px;
   background: rgba(0,0,0,.62); color: #fff; font-size: 13px; line-height: 1.45; }
 #ui-hint .close { position: absolute; top: 0; right: 0; width: 44px; height: 44px;
@@ -105,6 +130,7 @@ const STYLE = `
   margin-right: 8px; vertical-align: -1px; }
 
 @media (orientation: landscape) {
+  #ui-search { right: auto; width: min(380px, 44vw); }
   #ui-hint { right: auto; max-width: min(380px, 44vw); }
   #ui-floors { top: var(--gap-t); bottom: auto; }
   #ui-floors .row { flex-direction: row-reverse; gap: 8px; }
@@ -134,6 +160,12 @@ export interface UiActions {
   reveal: () => void;
   /** Вернуть камеру к общему виду. */
   home: () => void;
+  /**
+   * Показать помещение: выбрать его этаж, подсветить и подвести камеру.
+   * Интерфейс знает только идентификатор — что делать со сценой и камерой,
+   * решает точка сборки.
+   */
+  showRoom: (id: string) => void;
 }
 
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
@@ -165,9 +197,8 @@ export function createUi(
   const hint = document.createElement('div');
   hint.id = 'ui-hint';
   // Отладочный оверлей занимает тот же угол — при ?debug=1 подсказка уходит ниже.
-  if (new URLSearchParams(window.location.search).get('debug') === '1') {
-    hint.style.top = 'calc(var(--gap-t) + 118px)';
-  }
+  const debugPanel = new URLSearchParams(window.location.search).get('debug') === '1';
+  if (debugPanel) hint.style.top = 'calc(var(--gap-t) + 226px)';
   const hintText = document.createElement('div');
   if (known.length === 0) {
     hintText.append(
@@ -208,8 +239,172 @@ export function createUi(
     if (target instanceof Node && container.contains(target)) return;
     dismissHint();
     closeLegend();
+    closeSearch();
   };
   window.addEventListener('pointerdown', onScenePointer, true);
+
+  /* ---------- поиск помещения ---------- */
+
+  /**
+   * Список для поиска строится один раз: помещений полсотни, и перебирать их
+   * на каждое нажатие клавиши дешевле, чем строить индекс. Нормализованная
+   * строка хранится рядом, чтобы не пересчитывать её в цикле.
+   */
+  interface SearchItem {
+    id: string;
+    number: string;
+    name: string;
+    level: number;
+    haystackNumber: string;
+    haystackName: string;
+  }
+
+  /** Одна форма записи: регистр, ё и лишние пробелы не должны мешать найти. */
+  const normalize = (text: string): string =>
+    text.toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
+
+  const searchItems: SearchItem[] = [];
+  for (const floor of known) {
+    for (const room of floor.rooms) {
+      const number = room.planNumber ?? '';
+      searchItems.push({
+        id: room.id,
+        number,
+        name: room.name,
+        level: floor.level,
+        haystackNumber: normalize(number),
+        haystackName: normalize(room.name),
+      });
+    }
+  }
+
+  /** Сколько находок показываем: больше — это уже не список, а простыня. */
+  const SEARCH_LIMIT = 8;
+
+  /**
+   * Найти помещения. Порядок ответа — от точного к далёкому: номер с начала,
+   * название с начала, вхождение в середину. Человек, набравший «4.0»,
+   * ждёт сначала номера, а не помещение со словом «4.0» в описании.
+   */
+  function findRooms(query: string): SearchItem[] {
+    const needle = normalize(query);
+    if (needle.length === 0) return [];
+    const ranked: { item: SearchItem; rank: number }[] = [];
+    for (const item of searchItems) {
+      let rank = -1;
+      if (item.haystackNumber.startsWith(needle)) rank = 0;
+      else if (item.haystackName.startsWith(needle)) rank = 1;
+      else if (item.haystackNumber.includes(needle)) rank = 2;
+      else if (item.haystackName.includes(needle)) rank = 3;
+      if (rank >= 0) ranked.push({ item, rank });
+    }
+    ranked.sort((a, b) => a.rank - b.rank || a.item.number.localeCompare(b.item.number, 'ru'));
+    return ranked.slice(0, SEARCH_LIMIT).map((entry) => entry.item);
+  }
+
+  const search = document.createElement('div');
+  search.id = 'ui-search';
+  const searchField = document.createElement('div');
+  searchField.className = 'field';
+  const searchInput = document.createElement('input');
+  searchInput.type = 'search';
+  searchInput.autocomplete = 'off';
+  searchInput.placeholder = 'Номер или название';
+  searchInput.setAttribute('aria-label', 'Поиск помещения по номеру или названию');
+  const searchClear = document.createElement('button');
+  searchClear.type = 'button';
+  searchClear.className = 'clear';
+  searchClear.textContent = '✕';
+  searchClear.hidden = true;
+  searchClear.setAttribute('aria-label', 'Очистить поиск');
+  searchField.append(searchInput, searchClear);
+
+  const searchList = document.createElement('div');
+  searchList.className = 'list';
+  searchList.id = 'ui-search-list';
+  searchList.hidden = true;
+  searchList.setAttribute('role', 'listbox');
+  // Отладочный оверлей занимает тот же угол: при ?debug=1 поиск уходит ниже.
+  if (debugPanel) search.style.top = 'calc(var(--gap-t) + 172px)';
+  search.append(searchField, searchList);
+  container.appendChild(search);
+
+  // Планировок нет ни у одного этажа — искать нечего, и поле только мешает.
+  if (searchItems.length === 0) search.hidden = true;
+
+  function closeSearch(): void {
+    if (!searchList.hidden) {
+      searchList.hidden = true;
+      searchList.replaceChildren();
+    }
+  }
+
+  function chooseRoom(id: string): void {
+    dismissHint();
+    closeLegend();
+    closeSearch();
+    // Клавиатура на телефоне закрывает половину экрана: показать помещение
+    // и оставить её открытой — значит показать его в щёлку.
+    searchInput.blur();
+    actions.showRoom(id);
+  }
+
+  function renderSearch(): void {
+    const found = findRooms(searchInput.value);
+    searchClear.hidden = searchInput.value.length === 0;
+    if (searchInput.value.trim().length === 0) {
+      closeSearch();
+      return;
+    }
+    searchList.replaceChildren();
+    if (found.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty';
+      empty.textContent = 'Ничего не нашлось';
+      searchList.appendChild(empty);
+      searchList.hidden = false;
+      return;
+    }
+    for (const item of found) {
+      const line = document.createElement('button');
+      line.type = 'button';
+      const title = document.createElement('span');
+      if (item.number) {
+        const number = document.createElement('b');
+        number.textContent = item.number;
+        title.appendChild(number);
+      }
+      title.append(item.name);
+      const where = document.createElement('span');
+      where.className = 'where';
+      where.textContent = `${item.level} этаж, ${building.passport.shortName}`;
+      line.append(title, where);
+      line.addEventListener('click', () => chooseRoom(item.id));
+      searchList.appendChild(line);
+    }
+    searchList.hidden = false;
+  }
+
+  searchInput.addEventListener('input', renderSearch);
+  searchInput.addEventListener('focus', renderSearch);
+  searchInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      // Ввод выбирает первую находку: на телефоне это единственный способ
+      // ответить с клавиатуры, не целясь пальцем в список.
+      const first = findRooms(searchInput.value)[0];
+      if (first) chooseRoom(first.id);
+      return;
+    }
+    if (event.key === 'Escape') {
+      closeSearch();
+      searchInput.blur();
+    }
+  });
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    renderSearch();
+    searchInput.focus();
+  });
 
   /* ---------- карточка помещения ---------- */
 

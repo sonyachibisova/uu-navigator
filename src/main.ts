@@ -21,6 +21,13 @@ import { BuildingDataError, ProceduralSource } from '@building/sources/procedura
 import { createInteraction } from '@interaction/controller';
 import { createUi } from '@ui/minimal';
 
+/**
+ * Полуразмер окна вокруг найденного помещения, метры. Взято около половины
+ * ширины корпуса: в кадр попадает само помещение, оба соседних и коридор —
+ * то есть человек видит, откуда в него заходить, а не только его самого.
+ */
+const ROOM_WINDOW = 16;
+
 /** Текст для человека, у которого не запустилась 3D-графика. */
 const NO_WEBGL_TEXT =
   'Ваш браузер не показывает 3D-графику. ' +
@@ -154,6 +161,8 @@ function main(): void {
   // начинаться с растворения верхних колец на глазах.
   building.applyState(store.state, true);
 
+  /** Точка, которую передаём камере: одна на весь срок жизни сцены. */
+  const focusPoint = new Vector3();
   const ui = createUi(overlayRoot, store, building, {
     // Кнопка «заглянуть внутрь» только подводит камеру. Раскрытие здания —
     // следствие близости камеры, а не отдельная команда сцене.
@@ -166,6 +175,22 @@ function main(): void {
     // а камера обязана отъехать — иначе здание останется раскрытым.
     home(): void {
       cameraHandle.home();
+    },
+    // Найденное помещение показывается целиком: его этаж, подсветка и кадр
+    // вокруг него. Раньше выбрать помещение можно было только пальцем по
+    // модели — то есть только то, которое человек и так уже нашёл глазами.
+    showRoom(id: string): void {
+      const room = building.roomById(id);
+      if (!room) return;
+      store.set({
+        mode: 'floor',
+        activeFloor: room.floor,
+        selectedRoomId: id,
+        hoveredRoomId: null,
+        isolate: false,
+      });
+      focusPoint.set(room.focus.x, room.focus.y, room.focus.z);
+      cameraHandle.frameRoom(focusPoint, ROOM_WINDOW);
     },
   });
   const interaction = createInteraction({

@@ -92,6 +92,12 @@ export interface CameraHandle {
    * четверть кадра. Поворот в плане сохраняется — человек не теряет, куда смотрел.
    */
   frameFloor: (centerY: number, thickness: number) => void;
+  /**
+   * Подвести камеру к помещению: кадр строится по окну вокруг него, а не по
+   * всей стометровой длине корпуса. Иначе найденное помещение показывается
+   * с той же дистанции, с которой его и не было видно.
+   */
+  frameRoom: (center: Vector3, radius: number) => void;
   /** Вернуть камеру и точку интереса к стартовой рамке с анимацией. */
   home: () => void;
   /**
@@ -330,6 +336,26 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
         controls.maxDistance * 0.9,
       );
       goal.set(homeTarget.x, centerY, homeTarget.z);
+      flightPosition.copy(flightDirection).multiplyScalar(distance).add(goal);
+      touched = true;
+      startFlight();
+    },
+    frameRoom(center: Vector3, radius: number): void {
+      updateHomeFrame();
+      offset.subVectors(camera.position, controls.target);
+      const azimuth = Math.atan2(offset.x, offset.z);
+      const elevation = MathUtils.degToRad(FLOOR_ELEVATION);
+      const flat = Math.cos(elevation);
+      flightDirection.set(Math.sin(azimuth) * flat, Math.sin(elevation), Math.cos(azimuth) * flat);
+      const size = Math.max(radius, 1);
+      flightHalf.set(size, size / 2, size);
+      const distance = MathUtils.clamp(
+        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        controls.minDistance * 1.2,
+        controls.maxDistance * 0.9,
+      );
+      goal.copy(center);
+      clampTarget(goal);
       flightPosition.copy(flightDirection).multiplyScalar(distance).add(goal);
       touched = true;
       startFlight();
