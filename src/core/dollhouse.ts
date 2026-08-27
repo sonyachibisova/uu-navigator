@@ -213,7 +213,14 @@ export function createDollhouse(
       // сворачивается только за порогом выхода: между ними состояние держится.
       open = open ? distance <= DISTANCE_EXIT : distance < DISTANCE_ENTER;
       const target = open ? 1 - MathUtils.smoothstep(distance, DISTANCE_FULL, DISTANCE_EXIT) : 0;
-      openness = quantize(instant ? target : MathUtils.damp(openness, target, LAMBDA, dt));
+      // Сглаживание подходит к цели асимптотически, а округление съедает
+      // последний приросток: без доводки величина застревала на 0.988 при
+      // 60 кадрах и тем ближе к цели, чем медленнее кадр. Для `FadeRegistry`
+      // это «не единица»: интерьеры в раскрытом здании навсегда оставались
+      // прозрачными, без записи глубины и без теней, а кровля — плёнкой
+      // в один процент непрозрачности, которую нельзя погасить.
+      const stepped = instant ? target : MathUtils.damp(openness, target, LAMBDA, dt);
+      openness = Math.abs(target - stepped) <= STEP ? target : quantize(stepped);
 
       // Кровля идёт за раскрытием один в один: своего условия у неё больше нет.
       roofLift = openness;

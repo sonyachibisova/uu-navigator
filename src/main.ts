@@ -152,7 +152,9 @@ function main(): void {
    * ссылка на него живёт в коробке, которую подписка читает во время вызова,
    * а не при объявлении.
    */
-  const uiRef: { current?: { showRoute: (route: Route | undefined) => void } } = {};
+  const uiRef: {
+    current?: { showRoute: (route: Route | undefined, unreachable?: boolean) => void };
+  } = {};
   let shownRoute: Route | undefined;
   /** Точка, которую передаём камере: одна на весь срок жизни сцены. */
   const focusPoint = new Vector3();
@@ -174,7 +176,8 @@ function main(): void {
         (state.stepFree ? buildRoute(routeGraph, from, to) : undefined);
     }
     routeView.show(shownRoute, state.mode === 'floor' ? state.activeFloor : null);
-    uiRef.current?.showRoute(shownRoute);
+    const asked = Boolean(from && to && from !== to);
+    uiRef.current?.showRoute(shownRoute, asked && !shownRoute);
   }
 
   /** Подвести камеру под весь маршрут на текущем этаже. */

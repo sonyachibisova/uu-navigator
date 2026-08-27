@@ -11,7 +11,15 @@
  * этаже. Иначе лента с пятого этажа висела бы в воздухе над четвёртым:
  * срез по этажу снимает всё выше, а маршрут об этом ничего не знал бы.
  */
-import { BufferAttribute, BufferGeometry, DoubleSide, Group, Mesh, MeshBasicMaterial } from 'three';
+import {
+  BufferAttribute,
+  BufferGeometry,
+  DoubleSide,
+  DynamicDrawUsage,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+} from 'three';
 import type { Route } from '@routing/path';
 
 /** Ширина ленты, метры: заметно, но не перекрывает подписи помещений. */
@@ -68,7 +76,24 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
     side: DoubleSide,
   });
   material.depthWrite = false;
+  // Один буфер на всё время жизни: новый `BufferAttribute` на каждую
+  // пересборку оставлял бы прежний VBO в видеопамяти — рендерер удаляет
+  // буферы только при разрушении геометрии, а маршрут пересобирается
+  // на каждую смену этажа и режима.
   const geometry = new BufferGeometry();
+  let capacity = 0;
+  let vertices = new Float32Array(0);
+
+  /** Убедиться, что в буфере хватает места на `count` вершин. */
+  function reserve(count: number): void {
+    if (count <= capacity) return;
+    capacity = Math.max(count, capacity * 2, 256);
+    vertices = new Float32Array(capacity * 3);
+    const attribute = new BufferAttribute(vertices, 3);
+    attribute.setUsage(DynamicDrawUsage);
+    geometry.setAttribute('position', attribute);
+  }
+
   const mesh = new Mesh(geometry, material);
   mesh.name = 'route.ribbon';
   mesh.renderOrder = RENDER_ORDER;
@@ -145,8 +170,14 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
       mesh.visible = false;
       return;
     }
-    geometry.setAttribute('position', new BufferAttribute(new Float32Array(positions), 3));
-    geometry.computeBoundingSphere();
+    const count = positions.length / 3;
+    reserve(count);
+    vertices.set(positions);
+    const attribute = geometry.getAttribute('position') as BufferAttribute;
+    attribute.needsUpdate = true;
+    // Габарит не считается: меш не отсекается по пирамиде видимости, и
+    // проход по всем вершинам ради никем не читаемой сферы был бы лишним.
+    geometry.setDrawRange(0, count);
     mesh.visible = true;
   }
 

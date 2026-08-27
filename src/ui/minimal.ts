@@ -160,8 +160,11 @@ const STYLE = `
 `;
 
 export interface UiHandle {
-  /** Показать посчитанный маршрут или убрать его. Считает его точка сборки. */
-  showRoute: (route: Route | undefined) => void;
+  /**
+   * Показать посчитанный маршрут или убрать его. Считает его точка сборки.
+   * `unreachable` — обе точки выбраны, а пути между ними нет.
+   */
+  showRoute: (route: Route | undefined, unreachable?: boolean) => void;
   dispose: () => void;
 }
 
@@ -685,6 +688,8 @@ export function createUi(
 
   /** Последний показанный маршрут: из него собирается блок в карточке. */
   let shownRoute: Route | undefined;
+  /** Обе точки выбраны, а пути между ними не нашлось. */
+  let routeUnreachable = false;
 
   function renderRoute(): void {
     const state = store.state;
@@ -706,6 +711,14 @@ export function createUi(
         item.textContent = step.text;
         routeSteps.appendChild(item);
       }
+      routeBlock.hidden = false;
+      return;
+    }
+
+    if (routeUnreachable) {
+      // Молчать здесь нельзя: человек уже выбрал обе точки и ждёт ответа.
+      routeHead.textContent = 'Пути не нашлось: у помещения нет двери в данных';
+      routeSteps.replaceChildren();
       routeBlock.hidden = false;
       return;
     }
@@ -759,8 +772,9 @@ export function createUi(
   const unsubscribe = store.subscribe((next) => render(next));
 
   return {
-    showRoute(route: Route | undefined): void {
+    showRoute(route: Route | undefined, unreachable = false): void {
       shownRoute = route;
+      routeUnreachable = unreachable;
       renderRoute();
     },
     dispose(): void {

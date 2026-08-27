@@ -188,7 +188,12 @@ export function buildRoute(
       leg = { level: node.level, points: [] };
       legs.push(leg);
     }
-    leg.points.push({ x: node.x, z: node.z });
+    // Последняя точка — центр целевого помещения, и его плита в этот момент
+    // поднята над планом: отрезок внутри помещения уходил бы под неё и
+    // обрывался на полпути. Лента ведёт до двери, а само помещение и так
+    // отмечено подъёмом плиты и карточкой.
+    const lastRoom = node.kind === 'room' && i === nodes.length - 1;
+    if (!lastRoom) leg.points.push({ x: node.x, z: node.z });
 
     const next = nodes[i + 1];
     if (!next) continue;
@@ -199,7 +204,7 @@ export function buildRoute(
       const verb = up ? 'Поднимитесь' : 'Спуститесь';
       // Лифтом «поднимаются на», лестницей — «по»: предлог разный, и на нём
       // человек понимает, что его ждёт, ещё до того, как дочитает название.
-      const lift = node.ownerId.startsWith('lift');
+      const lift = node.verticalKind === 'lift';
       const where = lift ? `на лифте «${node.ownerName}»` : `по «${node.ownerName}»`;
       steps.push({ text: `${verb} ${where} на ${next.level} этаж`, level: node.level });
       continue;

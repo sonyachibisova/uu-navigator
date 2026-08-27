@@ -42,6 +42,8 @@ export type NodeKind = 'room' | 'door' | 'corridor' | 'vertical';
 
 export interface GraphNode {
   kind: NodeKind;
+  /** Для связей — лестница это или лифт. Шаги маршрута читают отсюда, а не из имени. */
+  verticalKind?: 'stairs' | 'lift';
   /** Этаж, на котором лежит узел. */
   level: number;
   x: number;
@@ -101,6 +103,14 @@ function centerline(bounds: Bounds): Segment {
 
 function distance(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.z - b.z);
+}
+
+/** Ближайшая точка прямоугольника: сама точка, если она внутри него. */
+function clampToBounds(point: Point, bounds: Bounds): Point {
+  return {
+    x: Math.min(Math.max(point.x, bounds.x0), bounds.x1),
+    z: Math.min(Math.max(point.z, bounds.z0), bounds.z1),
+  };
 }
 
 /** Ближайшая точка отрезка и её положение вдоль него в долях длины. */
@@ -177,25 +187,52 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     lines.push(...floorLines);
     if (floorLines.length === 0) continue;
 
-    /** Поставить узел на ближайшую осевую и вернуть его индекс. */
+    /**
+     * Привязать точку к коридорной сети. Возвращает узел, к которому её
+     * можно присоединить.
+     *
+     * Привязка идёт не к осевой линии напрямую, а к ближайшей точке самого
+     * прямоугольника коридора, и уже она — к осевой. Прямая привязка давала
+     * отрезки до одиннадцати метров наискось через соседние помещения:
+     * дверь у дальнего края широкого коридора отстоит от его осевой дальше,
+     * чем кажется, и лента шла сквозь стены — ровно то, ради чего дверь
+     * и заводилась отдельным узлом.
+     */
     const attach = (point: Point): number | undefined => {
-      let best: { line: CorridorLine; point: Point; t: number; gap: number } | undefined;
-      for (const line of floorLines) {
-        const hit = project(point, line.segment);
-        const gap = distance(point, hit.point);
-        if (!best || gap < best.gap) best = { line, point: hit.point, t: hit.t, gap };
-      }
+      let best: { line: CorridorLine; bounds: Bounds; gap: number } | undefined;
+      floorLines.forEach((line, index) => {
+        const bounds = floor.corridors[index]?.bounds;
+        if (!bounds) return;
+        const near = clampToBounds(point, bounds);
+        const gap = distance(point, near);
+        if (!best || gap < best.gap) best = { line, bounds, gap };
+      });
       if (!best) return undefined;
-      const index = addNode({
+
+      const edge = clampToBounds(point, best.bounds);
+      const hit = project(edge, best.line.segment);
+      const onLine = addNode({
         kind: 'corridor',
         level: floor.level,
-        x: best.point.x,
-        z: best.point.z,
+        x: hit.point.x,
+        z: hit.point.z,
         ownerId: best.line.id,
         ownerName: best.line.name,
       });
-      best.line.marks.push({ index, t: best.t });
-      return index;
+      best.line.marks.push({ index: onLine, t: hit.t });
+
+      // Если точка уже лежит на осевой, промежуточный узел не нужен.
+      if (distance(edge, hit.point) < 0.05) return onLine;
+      const onEdge = addNode({
+        kind: 'corridor',
+        level: floor.level,
+        x: edge.x,
+        z: edge.z,
+        ownerId: best.line.id,
+        ownerName: best.line.name,
+      });
+      link(onEdge, onLine, distance(edge, hit.point));
+      return onEdge;
     };
 
     // Стыки коридоров: точка стыка попадает на обе осевые и связывается сама
@@ -267,6 +304,7 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       const point = centerOf(linkView.bounds);
       const nodeIndex = addNode({
         kind: 'vertical',
+        verticalKind: linkView.kind,
         level: floor.level,
         x: point.x,
         z: point.z,
@@ -275,8 +313,12 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       });
       verticalIndex.set(`${linkView.id}@${floor.level}`, nodeIndex);
       const seen = verticalSeen.get(linkView.id);
-      if (seen) seen.levels.push(floor.level);
-      else
+      if (seen) {
+        seen.levels.push(floor.level);
+        // Связь доступна, только если доступна на каждом своём этаже:
+        // пандус на одном ярусе не отменяет ступеней на другом.
+        seen.accessible = seen.accessible && linkView.accessible === true;
+      } else
         verticalSeen.set(linkView.id, {
           kind: linkView.kind,
           accessible: linkView.accessible === true,
@@ -320,7 +362,12 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       const from = verticalIndex.get(`${id}@${lower}`);
       const to = verticalIndex.get(`${id}@${upper}`);
       if (from === undefined || to === undefined) continue;
-      const rise = heights.get(upper) ?? heights.get(lower) ?? 3.6;
+      // Высоты этажей разные: подъём считается суммой пройденных, а не
+      // высотой верхнего, помноженной на разницу уровней.
+      let rise = 0;
+      for (let level = lower + 1; level <= upper; level += 1) {
+        rise += heights.get(level) ?? heights.get(lower) ?? 3.6;
+      }
       const factor = view.kind === 'lift' ? LIFT_FACTOR : STAIR_FACTOR;
       // Лифт считается доступным по своей природе, лестница — только если
       // это подтверждено данными. `unknown` в данных трактуется как «нет»:
