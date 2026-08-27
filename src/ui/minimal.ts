@@ -187,6 +187,29 @@ export interface UiActions {
   setStepFree: (value: boolean) => void;
 }
 
+/**
+ * Слова, которыми человек спрашивает, и слова, которыми названы помещения, —
+ * разные. Никто не ищет «санузел», ищут «туалет»; библиотека в школе
+ * называется Learning Resource Centre. Словарь маленький намеренно: он
+ * покрывает случаи, где расхождение системное, а не заменяет собой поиск
+ * по назначению помещения. Когда школа отдаст официальные названия,
+ * ему место в данных, а не здесь.
+ */
+const SYNONYMS: Record<string, string> = {
+  туалет: 'санузел',
+  уборная: 'санузел',
+  wc: 'санузел',
+  сортир: 'санузел',
+  библиотека: 'learning resource',
+  столовая: 'кафе',
+  буфет: 'кафе',
+  аудитория: 'базерум',
+  кабинет: 'базерум',
+  компьютерный: 'класс',
+  печать: 'печати',
+  вход: 'галерея',
+};
+
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
 function strong(text: string): HTMLElement {
   const element = document.createElement('b');
@@ -277,6 +300,8 @@ export function createUi(
     where: string;
     haystackNumber: string;
     haystackName: string;
+    /** Назначение словами: по нему находится «мастерская» и «библиотека». */
+    haystackType: string;
   }
 
   /** Одна форма записи: регистр, ё и лишние пробелы не должны мешать найти. */
@@ -294,6 +319,7 @@ export function createUi(
         where: `${floor.level} этаж, ${building.passport.shortName}`,
         haystackNumber: normalize(number),
         haystackName: normalize(room.name),
+        haystackType: normalize(PURPOSE_LABEL[room.type] ?? ''),
       });
     }
   }
@@ -311,6 +337,7 @@ export function createUi(
       where: `${where}, ${building.passport.shortName}`,
       haystackNumber: '',
       haystackName: normalize(place.name),
+      haystackType: normalize(place.name.startsWith('Лифт') ? 'лифт' : 'лестница'),
     });
   }
 
@@ -325,13 +352,24 @@ export function createUi(
   function findRooms(query: string): SearchItem[] {
     const needle = normalize(query);
     if (needle.length === 0) return [];
+    // Запрос ищется и как есть, и через словарь: «туалет» находит санузел,
+    // но и слово «санузел» ничего не теряет.
+    const needles = [needle];
+    for (const [word, canonical] of Object.entries(SYNONYMS)) {
+      if (word.startsWith(needle) || needle.startsWith(word)) needles.push(canonical);
+    }
     const ranked: { item: SearchItem; rank: number }[] = [];
     for (const item of searchItems) {
       let rank = -1;
-      if (item.haystackNumber.startsWith(needle)) rank = 0;
-      else if (item.haystackName.startsWith(needle)) rank = 1;
-      else if (item.haystackNumber.includes(needle)) rank = 2;
-      else if (item.haystackName.includes(needle)) rank = 3;
+      for (const term of needles) {
+        let current = -1;
+        if (item.haystackNumber.startsWith(term)) current = 0;
+        else if (item.haystackName.startsWith(term)) current = 1;
+        else if (item.haystackNumber.includes(term)) current = 2;
+        else if (item.haystackName.includes(term)) current = 3;
+        else if (item.haystackType.includes(term)) current = 4;
+        if (current >= 0 && (rank < 0 || current < rank)) rank = current;
+      }
       if (rank >= 0) ranked.push({ item, rank });
     }
     ranked.sort((a, b) => a.rank - b.rank || a.item.number.localeCompare(b.item.number, 'ru'));
