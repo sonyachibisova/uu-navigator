@@ -141,7 +141,7 @@ const STYLE = `
 #ui-floors button.on { background: #2c7a2c; }
 /* Прозрачность на полупрозрачной подложке давала контраст около 2:1 —
    цифры неактивных этажей не читались. Состояние задано цветом. */
-#ui-floors button:disabled { background: rgba(0,0,0,.45); color: #c9c9c9; cursor: default; }
+#ui-floors button:disabled, #ui-floors button.off { background: rgba(0,0,0,.45); color: #c9c9c9; }
 #ui-floors .note { max-width: 170px; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.7);
   color: #fff; font-size: 13px; line-height: 1.3; text-align: right; }
 
@@ -665,9 +665,17 @@ export function createUi(
         });
       });
     } else {
-      button.disabled = true;
+      // Не `disabled`, а `aria-disabled`: отключённая кнопка не даёт событий,
+      // и человек, нажавший на первый этаж, не получал вообще никакого
+      // ответа — а ответ у нас есть, просто он словами.
+      button.classList.add('off');
+      button.setAttribute('aria-disabled', 'true');
       button.title = 'Планировка уточняется';
       button.setAttribute('aria-label', `${floor.name}: планировка уточняется`);
+      button.addEventListener('click', () => {
+        dismissHint();
+        showUnknownNote();
+      });
     }
     row.appendChild(button);
     floorButtons.push({ level: floor.level, button });
@@ -693,15 +701,30 @@ export function createUi(
   });
   row.appendChild(homeButton);
 
+  // Постоянно висящее извинение читается как «продукт недоделан» — и читается
+  // непрерывно. Плашка появляется, когда человек нажал на этаж без планировки,
+  // то есть ровно тогда, когда ему нужен ответ, и уходит сама.
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.hidden = true;
+  note.setAttribute('role', 'status');
   if (unknown.length > 0) {
-    const note = document.createElement('div');
-    note.className = 'note';
     const levels = unknown.map((floor) => floor.level);
     const first = levels[0];
     const last = levels[levels.length - 1];
     const range = levels.length > 1 ? `${first}–${last}` : String(first);
-    note.textContent = `Этажи ${range}: планировка уточняется`;
+    note.textContent = `Этажи ${range}: планировка уточняется. Мы запросили планы у школы`;
     floorsPanel.appendChild(note);
+  }
+
+  let noteTimer = 0;
+  function showUnknownNote(): void {
+    if (unknown.length === 0) return;
+    note.hidden = false;
+    window.clearTimeout(noteTimer);
+    noteTimer = window.setTimeout(() => {
+      note.hidden = true;
+    }, 5000);
   }
 
   /* ---------- легенда: одна кнопка, список по нажатию ---------- */
@@ -792,7 +815,13 @@ export function createUi(
     routeMode.hidden = !started;
 
     if (shownRoute) {
-      routeHead.textContent = `${shownRoute.fromName} → ${shownRoute.toName}: ${Math.round(shownRoute.meters)} м, ${shownRoute.minutes} мин`;
+      // Минута пути внутри этажа — это сообщение «маршрут тебе не нужен».
+      // Время называется только там, где оно что-то значит.
+      const length =
+        shownRoute.minutes > 1
+          ? `${Math.round(shownRoute.meters)} м, ${shownRoute.minutes} мин`
+          : `${Math.round(shownRoute.meters)} м`;
+      routeHead.textContent = `${shownRoute.fromName} → ${shownRoute.toName}: ${length}`;
       if (state.stepFree && !shownRoute.stepFree) {
         routeHead.textContent += ' (без лестниц пути нет — показан обычный)';
       }
@@ -851,16 +880,28 @@ export function createUi(
     shownRoomId = state.selectedRoomId;
 
     const room = shownRoomId ? building.roomById(shownRoomId) : undefined;
-    if (!room) {
+    // Выбрана может быть и связь: у лестницы номера нет, а этажей несколько.
+    const place = room || !shownRoomId ? undefined : building.verticalById(shownRoomId);
+    if (!room && !place) {
       card.hidden = true;
       measureCard();
       return;
     }
-    const number = room.planNumber ?? '';
+    const number = room?.planNumber ?? '';
     cardNumber.textContent = number;
     cardNumber.hidden = number === '';
-    cardName.textContent = room.name;
-    cardWhere.textContent = `${room.floor} этаж, ${building.passport.shortName}`;
+    cardName.textContent = room ? room.name : (place?.name ?? '');
+    if (room) {
+      cardWhere.textContent = `${room.floor} этаж, ${building.passport.shortName}`;
+    } else if (place) {
+      const levels = [...place.levels].sort((one, two) => one - two);
+      const first = levels[0] ?? place.level;
+      const last = levels[levels.length - 1] ?? place.level;
+      cardWhere.textContent =
+        levels.length > 1
+          ? `этажи ${first}–${last}, ${building.passport.shortName}`
+          : `${first} этаж, ${building.passport.shortName}`;
+    }
     renderRoute();
     card.hidden = false;
     measureCard();
@@ -892,6 +933,7 @@ export function createUi(
     },
     dispose(): void {
       unsubscribe();
+      window.clearTimeout(noteTimer);
       window.removeEventListener('pointerdown', onScenePointer, true);
       window.removeEventListener('keydown', onKeyDown);
       container.remove();

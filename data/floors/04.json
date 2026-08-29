@@ -59,7 +59,7 @@
     {
       "id": "f04-studio-02",
       "planNumber": "4.14",
-      "name": "Базерум Illustration 4.14",
+      "name": "Базерум Illustration",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -84,7 +84,7 @@
     {
       "id": "f04-studio-03",
       "planNumber": "4.15",
-      "name": "Базерум Illustration 4.15",
+      "name": "Базерум Illustration",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -168,7 +168,7 @@
     {
       "id": "f04-office-02",
       "planNumber": "4.05",
-      "name": "Преподавательская 4.05",
+      "name": "Преподавательская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "office",
@@ -196,7 +196,7 @@
     {
       "id": "f04-lab-01",
       "planNumber": "4.06",
-      "name": "Компьютерный класс 4.06",
+      "name": "Компьютерный класс",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -224,7 +224,7 @@
     {
       "id": "f04-lab-02",
       "planNumber": "4.07",
-      "name": "Компьютерный класс 4.07",
+      "name": "Компьютерный класс",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -252,7 +252,7 @@
     {
       "id": "f04-lab-03",
       "planNumber": "4.08",
-      "name": "Компьютерный класс 4.08",
+      "name": "Компьютерный класс",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -305,7 +305,7 @@
     {
       "id": "f04-class-01",
       "planNumber": "4.10",
-      "name": "Семинарская 4.10",
+      "name": "Семинарская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "class",
@@ -331,7 +331,7 @@
     {
       "id": "f04-class-02",
       "planNumber": "4.11",
-      "name": "Семинарская 4.11",
+      "name": "Семинарская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "class",
@@ -359,7 +359,7 @@
     {
       "id": "f04-tech-01",
       "planNumber": "4.20",
-      "name": "Антресоль 4.20",
+      "name": "Антресоль",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "tech",
@@ -389,7 +389,7 @@
     {
       "id": "f04-storage-02",
       "planNumber": "4.12",
-      "name": "Кладовая 4.12",
+      "name": "Кладовая",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "storage",
@@ -414,7 +414,7 @@
     {
       "id": "f04-tech-02",
       "planNumber": "4.13",
-      "name": "Фотостудия 4.13",
+      "name": "Фотостудия",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "tech",
@@ -447,7 +447,7 @@
     {
       "id": "f04-tech-03",
       "planNumber": "4.17",
-      "name": "Тёмная комната 4.17",
+      "name": "Тёмная комната",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "tech",
@@ -527,7 +527,7 @@
     {
       "id": "f04-lab-04",
       "planNumber": "4.03",
-      "name": "Класс Apple 4.03",
+      "name": "Класс Apple",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -553,7 +553,7 @@
     {
       "id": "f04-studio-05",
       "planNumber": "4.02",
-      "name": "Базерум PD и IAD 4.02",
+      "name": "Базерум PD и IAD",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -578,7 +578,7 @@
     {
       "id": "f04-studio-06",
       "planNumber": "4.01",
-      "name": "Базерум PD и IAD 4.01",
+      "name": "Базерум PD и IAD",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -603,7 +603,7 @@
     {
       "id": "f04-studio-07",
       "planNumber": "4.19",
-      "name": "Базерум Illustration 4.19",
+      "name": "Базерум Illustration",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",

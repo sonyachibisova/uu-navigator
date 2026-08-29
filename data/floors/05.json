@@ -90,7 +90,7 @@
     {
       "id": "f05-office-01",
       "planNumber": "5.02",
-      "name": "Преподавательская 5.02",
+      "name": "Преподавательская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "office",
@@ -167,7 +167,7 @@
     {
       "id": "f05-workshop-01",
       "planNumber": "5.13",
-      "name": "Мастерская Fashion 5.13",
+      "name": "Мастерская Fashion",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "workshop",
@@ -268,7 +268,7 @@
     {
       "id": "f05-lab-01",
       "planNumber": "5.05",
-      "name": "Класс Apple 5.05",
+      "name": "Класс Apple",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -320,7 +320,7 @@
     {
       "id": "f05-lab-02",
       "planNumber": "5.09",
-      "name": "Класс Apple 5.09",
+      "name": "Класс Apple",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "lab",
@@ -371,7 +371,7 @@
     {
       "id": "f05-class-01",
       "planNumber": "5.04",
-      "name": "Семинарская 5.04",
+      "name": "Семинарская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "class",
@@ -397,7 +397,7 @@
     {
       "id": "f05-studio-04",
       "planNumber": "5.06a",
-      "name": "Базерум Contemporary Art 5.06a",
+      "name": "Базерум Contemporary Art",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -422,7 +422,7 @@
     {
       "id": "f05-studio-05",
       "planNumber": "5.06b",
-      "name": "Базерум Contemporary Art 5.06b",
+      "name": "Базерум Contemporary Art",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "studio",
@@ -472,7 +472,7 @@
     {
       "id": "f05-class-02",
       "planNumber": "5.10",
-      "name": "Семинарская 5.10",
+      "name": "Семинарская",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "class",
@@ -498,7 +498,7 @@
     {
       "id": "f05-workshop-04",
       "planNumber": "5.12",
-      "name": "Мастерская Fashion 5.12",
+      "name": "Мастерская Fashion",
       "nameConfirmed": true,
       "nameSource": "plan",
       "type": "workshop",

@@ -75,6 +75,12 @@ export interface RouteGraph {
   verticalNode: (id: string, level: number) => number | undefined;
   /** Все узлы связей: по ним интерфейс предлагает «ближайшую лестницу». */
   verticalIds: () => string[];
+  /**
+   * Узел по идентификатору помещения или связи: концом маршрута может быть
+   * и лестница. Человек в холле не знает номера помещения, из которого
+   * выходит, зато видит лестницу, у которой стоит.
+   */
+  anchorNode: (id: string) => number | undefined;
 }
 
 interface Point {
@@ -405,6 +411,14 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     edges,
     roomNode: (id) => roomIndex.get(id),
     verticalNode: (id, level) => verticalIndex.get(`${id}@${level}`),
+    anchorNode(id) {
+      const room = roomIndex.get(id);
+      if (room !== undefined) return room;
+      const seen = verticalSeen.get(id);
+      if (!seen) return undefined;
+      const lowest = [...seen.levels].sort((one, two) => one - two)[0];
+      return lowest === undefined ? undefined : verticalIndex.get(`${id}@${lowest}`);
+    },
     verticalIds: () => [...verticalSeen.keys()],
   };
 }

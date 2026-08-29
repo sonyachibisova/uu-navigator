@@ -40,6 +40,21 @@ const NO_WEBGL_TEXT =
 /** Текст для человека, у которого не сошлись данные здания. */
 const NO_DATA_TEXT = 'Не удалось загрузить план, обновите страницу.';
 
+/**
+ * Точка отправления из адреса: `?from=stair-south-01`. Так работает наклейка
+ * с кодом на лестничной площадке — человек снимает её телефоном и попадает
+ * в навигатор, который уже знает, где он стоит. Это единственный способ
+ * ответить на «я тут» без планировок первых этажей и без геолокации,
+ * которая в здании всё равно не работает.
+ */
+function startFromUrl(): string | null {
+  try {
+    return new URLSearchParams(window.location.search).get('from');
+  } catch {
+    return null;
+  }
+}
+
 /** Подробности показываются только при ?debug=1: посетителю они не нужны. */
 function isDebug(): boolean {
   try {
@@ -290,7 +305,9 @@ function main(): void {
       store.set({
         mode: 'floor',
         activeFloor: room ? room.floor : (place?.level ?? null),
-        selectedRoomId: room ? id : null,
+        // Лестница тоже выбирается: у неё есть карточка, и от неё строят
+        // маршрут — человек в холле знает лестницу, а не номер помещения.
+        selectedRoomId: id,
         hoveredRoomId: null,
         isolate: false,
       });
@@ -305,6 +322,14 @@ function main(): void {
     },
   });
   uiRef.current = ui;
+
+  // Наклейка с кодом привела человека сюда: отправная точка уже известна,
+  // остаётся спросить, куда он идёт.
+  const startId = startFromUrl();
+  if (startId && routeGraph.anchorNode(startId) !== undefined) {
+    store.set({ routeFromId: startId });
+    updateRoute(store.state);
+  }
   const interaction = createInteraction({
     canvas: rendererHandle.renderer.domElement,
     camera: cameraHandle.camera,

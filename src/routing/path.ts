@@ -13,8 +13,13 @@ import type { GraphNode, RouteGraph } from '@routing/graph';
 
 /** Скорость шага в здании, м/с: медленнее улицы — двери, повороты, люди. */
 const WALK_SPEED = 1.1;
-/** Короткие звенья не превращаются в отдельный шаг: это шум, а не указание. */
-const MIN_STEP_LENGTH = 4;
+/**
+ * Короткий отрезок не становится отдельным шагом: это шум, а не указание.
+ * Его длина не теряется — она переносится в следующий шаг, иначе сумма
+ * шагов не сходилась бы с длиной маршрута. Семь метров — примерно два
+ * шага в сторону и обратно: меньше этого человек и не считает поворотом.
+ */
+const MIN_STEP_LENGTH = 7;
 
 export interface RoutePoint {
   x: number;
@@ -146,40 +151,211 @@ export function findPath(
   return path[0] === from ? path : [];
 }
 
-/** Собрать маршрут между помещениями. `undefined` — пути нет. */
+/**
+ * Допуск спрямления, метры. Узлы графа стоят там, где к коридору что-то
+ * примыкает, поэтому вдоль прямого коридора их несколько и лежат они не
+ * ровно на одной линии: без спрямления человек получал бы «поверните
+ * направо — 16 м, поверните налево — 8 м» посреди прямого прохода.
+ */
+const SIMPLIFY_TOLERANCE = 0.9;
+
+/** Отклонение точки от прямой между соседями. */
+function deviation(from: GraphNode, via: GraphNode, to: GraphNode): number {
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const length = Math.hypot(dx, dz);
+  if (length < 1e-6) return Math.hypot(via.x - from.x, via.z - from.z);
+  return Math.abs((via.x - from.x) * dz - (via.z - from.z) * dx) / length;
+}
+
+/**
+ * Убрать узлы, которые не меняют геометрию пути. Остаются концы, переходы
+ * между этажами, связи, двери и настоящие повороты: именно из них потом
+ * собираются указания и лента.
+ */
+function simplify(nodes: readonly GraphNode[]): GraphNode[] {
+  if (nodes.length < 3) return [...nodes];
+  const kept: GraphNode[] = [];
+  const first = nodes[0];
+  if (first) kept.push(first);
+  for (let i = 1; i < nodes.length - 1; i += 1) {
+    const node = nodes[i];
+    const previous = kept[kept.length - 1];
+    const next = nodes[i + 1];
+    if (!node || !previous || !next) continue;
+    const mandatory =
+      node.kind !== 'corridor' || node.level !== previous.level || node.level !== next.level;
+    if (mandatory || deviation(previous, node, next) > SIMPLIFY_TOLERANCE) kept.push(node);
+  }
+  const last = nodes[nodes.length - 1];
+  if (last) kept.push(last);
+  return kept;
+}
+
+/**
+ * Сторона поворота в плане. Север здания — минимальный `z`, поэтому на плане
+ * с севером вверх ось `x` идёт вправо, а `z` — вниз. Векторное произведение
+ * в этих осях положительно, когда второй отрезок уходит по часовой стрелке,
+ * то есть направо.
+ */
+function turnOf(from: GraphNode, via: GraphNode, to: GraphNode): 'left' | 'right' | 'straight' {
+  const ax = via.x - from.x;
+  const az = via.z - from.z;
+  const bx = to.x - via.x;
+  const bz = to.z - via.z;
+  const lengthA = Math.hypot(ax, az);
+  const lengthB = Math.hypot(bx, bz);
+  if (lengthA < 0.2 || lengthB < 0.2) return 'straight';
+  const cross = (ax * bz - az * bx) / (lengthA * lengthB);
+  // Порог в полсинуса тридцати градусов: мелкие изломы осевой линии —
+  // это погрешность плана, а не поворот, и указывать их нельзя.
+  if (Math.abs(cross) < 0.5) return 'straight';
+  return cross > 0 ? 'right' : 'left';
+}
+
+const TURN_WORD: Record<'left' | 'right', string> = {
+  left: 'налево',
+  right: 'направо',
+};
+
+/**
+ * Превратить цепочку узлов в указания для человека.
+ *
+ * Здесь сознательно не используются имена коридоров из данных: «Проход
+ * к 4.21» и «Северный проход перед 4.09» — это имена рёбер графа, которых
+ * нет ни на одной стене. Человек идёт по поворотам и расстояниям, а имя
+ * коридора называется только тогда, когда оно и правда написано в здании, —
+ * то есть у главных коридоров этажа.
+ */
+function describe(nodes: readonly GraphNode[]): RouteStep[] {
+  const steps: RouteStep[] = [];
+  const first = nodes[0];
+  if (first) {
+    steps.push({
+      text: first.kind === 'room' ? `Выйдите из «${first.ownerName}»` : `Встаньте у «${first.ownerName}»`,
+      level: first.level,
+    });
+  }
+
+  let run = 0;
+  let runLevel = first?.level ?? 0;
+  let pendingTurn: 'left' | 'right' | 'straight' = 'straight';
+  let mainName = '';
+
+  const flush = (): void => {
+    // Копим дальше: короткий крюк у двери или у лифта — часть следующего
+    // прямого участка, а не отдельная строка «поверните направо — 5 м».
+    if (run < MIN_STEP_LENGTH) return;
+    const distance = `${Math.round(run)} м`;
+    const where = mainName ? ` по «${mainName}»` : '';
+    const text =
+      pendingTurn === 'straight'
+        ? `Идите${where} — ${distance}`
+        : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
+    steps.push({ text, level: runLevel });
+    run = 0;
+    pendingTurn = 'straight';
+    mainName = '';
+  };
+
+  /** Вывести остаток, даже если он короче порога: перед лифтом и в конце. */
+  const flushRemainder = (): void => {
+    if (run < 1) {
+      run = 0;
+      pendingTurn = 'straight';
+      return;
+    }
+    const distance = `${Math.round(run)} м`;
+    const where = mainName ? ` по «${mainName}»` : '';
+    const text =
+      pendingTurn === 'straight'
+        ? `Идите${where} — ${distance}`
+        : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
+    steps.push({ text, level: runLevel });
+    run = 0;
+    pendingTurn = 'straight';
+    mainName = '';
+  };
+
+  for (let i = 0; i < nodes.length - 1; i += 1) {
+    const node = nodes[i];
+    const next = nodes[i + 1];
+    if (!node || !next) continue;
+
+    if (next.level !== node.level) {
+      flushRemainder();
+      const up = next.level > node.level;
+      const verb = up ? 'Поднимитесь' : 'Спуститесь';
+      // Лифтом «поднимаются на», лестницей — «по»: предлог разный, и на нём
+      // человек понимает, что его ждёт, ещё до того, как дочитает название.
+      const lift = node.verticalKind === 'lift';
+      const where = lift ? `на лифте «${node.ownerName}»` : `по «${node.ownerName}»`;
+      steps.push({ text: `${verb} ${where} на ${next.level} этаж`, level: node.level });
+      continue;
+    }
+
+    const previous = nodes[i - 1];
+    if (previous && previous.level === node.level) {
+      const turn = turnOf(previous, node, next);
+      if (turn !== 'straight') {
+        flush();
+        // Поворот, скопившийся до слияния коротких отрезков, важнее
+        // последующих: человек делает его первым.
+        if (pendingTurn === 'straight') pendingTurn = turn;
+      }
+    }
+
+    // Имя называется только у главного коридора этажа: оно единственное,
+    // которое человек может услышать от вахтёра или увидеть на схеме.
+    if (next.kind === 'corridor' && next.ownerName.startsWith('Главный')) {
+      mainName = next.ownerName;
+    }
+    run += Math.hypot(next.x - node.x, next.z - node.z);
+    runLevel = node.level;
+  }
+  flushRemainder();
+
+  const last = nodes[nodes.length - 1];
+  const beforeLast = nodes[nodes.length - 2];
+  if (last) {
+    // С какой стороны дверь: человеку это заменяет полкарты.
+    let side = '';
+    if (beforeLast && nodes.length >= 3) {
+      const before = nodes[nodes.length - 3];
+      if (before) {
+        const turn = turnOf(before, beforeLast, last);
+        if (turn !== 'straight') side = `, дверь ${TURN_WORD[turn] === 'налево' ? 'слева' : 'справа'}`;
+      }
+    }
+    steps.push({ text: `Вы на месте: ${last.ownerName}${side}`, level: last.level });
+  }
+  return steps;
+}
+
+/**
+ * Собрать маршрут между двумя точками здания. Точкой может быть помещение
+ * или связь — лестница и лифт: с них человек чаще всего и начинает.
+ * `undefined` — пути нет.
+ */
 export function buildRoute(
   graph: RouteGraph,
   fromId: string,
   toId: string,
   options: PathOptions = {},
 ): Route | undefined {
-  const from = graph.roomNode(fromId);
-  const to = graph.roomNode(toId);
+  const from = graph.anchorNode(fromId);
+  const to = graph.anchorNode(toId);
   if (from === undefined || to === undefined || from === to) return undefined;
   const path = findPath(graph, from, to, options);
   if (path.length < 2) return undefined;
 
-  const nodes = path.map((index) => graph.nodes[index]).filter((node): node is GraphNode => !!node);
-  if (nodes.length < 2) return undefined;
+  const raw = path.map((index) => graph.nodes[index]).filter((node): node is GraphNode => !!node);
+  if (raw.length < 2) return undefined;
+  const nodes = simplify(raw);
 
   const legs: RouteLeg[] = [];
-  const steps: RouteStep[] = [];
   let meters = 0;
   let leg: RouteLeg | undefined;
-  let pending = 0;
-  let pendingName = '';
-  let pendingOwner = '';
-
-  /** Слить накопленную длину в шаг: короткие звенья не заслуживают строки. */
-  const flush = (level: number): void => {
-    if (pending >= MIN_STEP_LENGTH) {
-      const where = pendingName ? `по «${pendingName}»` : 'по коридору';
-      steps.push({ text: `Идите ${where} — ${Math.round(pending)} м`, level });
-    }
-    pending = 0;
-    pendingName = '';
-    pendingOwner = '';
-  };
 
   for (let i = 0; i < nodes.length; i += 1) {
     const node = nodes[i];
@@ -194,44 +370,16 @@ export function buildRoute(
     // отмечено подъёмом плиты и карточкой.
     const lastRoom = node.kind === 'room' && i === nodes.length - 1;
     if (!lastRoom) leg.points.push({ x: node.x, z: node.z });
-
     const next = nodes[i + 1];
-    if (!next) continue;
-
-    if (next.level !== node.level) {
-      flush(node.level);
-      const up = next.level > node.level;
-      const verb = up ? 'Поднимитесь' : 'Спуститесь';
-      // Лифтом «поднимаются на», лестницей — «по»: предлог разный, и на нём
-      // человек понимает, что его ждёт, ещё до того, как дочитает название.
-      const lift = node.verticalKind === 'lift';
-      const where = lift ? `на лифте «${node.ownerName}»` : `по «${node.ownerName}»`;
-      steps.push({ text: `${verb} ${where} на ${next.level} этаж`, level: node.level });
-      continue;
+    if (next && next.level === node.level) {
+      meters += Math.hypot(next.x - node.x, next.z - node.z);
     }
-
-    // Смена коридора — это поворот, и человеку он нужен отдельной строкой:
-    // «идите по главному коридору, потом по лифтовому холлу» читается,
-    // а одна строка с именем последнего коридора врёт про весь путь.
-    if (next.kind === 'corridor' && next.ownerId !== pendingOwner && pendingOwner) {
-      flush(node.level);
-    }
-    const span = Math.hypot(next.x - node.x, next.z - node.z);
-    meters += span;
-    pending += span;
-    if (next.kind === 'corridor' && next.ownerName) {
-      pendingName = next.ownerName;
-      pendingOwner = next.ownerId;
-    }
-    if (next.kind === 'door' && i + 2 >= nodes.length) flush(node.level);
   }
 
-  const last = nodes[nodes.length - 1];
-  if (last) flush(last.level);
-
+  const steps = describe(nodes);
   const fromName = nodes[0]?.ownerName ?? '';
+  const last = nodes[nodes.length - 1];
   const toName = last?.ownerName ?? '';
-  if (toName) steps.push({ text: `Вы на месте: ${toName}`, level: last?.level ?? 0 });
 
   return {
     stepFree: options.stepFree === true,
