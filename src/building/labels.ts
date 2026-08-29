@@ -48,6 +48,12 @@ const TITLE_SIZE = 42;
 const SUBTITLE_SIZE = 24;
 const TITLE_COLOR = '#143a8a';
 const SUBTITLE_COLOR = '#3c3c3c';
+/**
+ * Цвет якорей — лестниц и лифтов. Он другой намеренно: это единственные
+ * подписи, которым соответствует что-то видимое глазами, и по ним человек
+ * сопоставляет план с тем, где стоит.
+ */
+const ANCHOR_COLOR = '#12603a';
 const FONT = 'Arial, Helvetica, sans-serif';
 
 /** Ширина атласа: дальше плитки переносятся на новую полку. */
@@ -65,6 +71,8 @@ const RENDER_ORDER = 3;
 const NUMBER_HEIGHT = 3.6;
 const FULL_HEIGHT = 1.7;
 const SINGLE_HEIGHT = 1.2;
+/** Высота подписи якоря: лестницы и лифта. */
+const ANCHOR_HEIGHT = 2.2;
 
 /**
  * Пороги смены вида, в долях высоты экрана. Порог задан долей экрана, а не
@@ -81,6 +89,8 @@ const NUMBER_IN = [0.014, 0.02] as const;
  * приходит, и на переходе не остаётся ни того, ни другого.
  */
 const FULL_IN = [0.028, 0.036] as const;
+/** Порог якорей — ниже, чем у номеров: они нужны раньше всего остального. */
+const ANCHOR_IN = [0.01, 0.016] as const;
 
 /**
  * Полоса интерфейса у правого края экрана, доля ширины кадра. Подписи под
@@ -111,7 +121,7 @@ interface Entry {
 let measureContext: CanvasRenderingContext2D | null | undefined;
 
 /** Нарисовать одну подпись на отдельном холсте. Размер холста — по тексту. */
-function drawTile(title: string, subtitle: string): HTMLCanvasElement | undefined {
+function drawTile(title: string, subtitle: string, anchor = false): HTMLCanvasElement | undefined {
   if (measureContext === undefined) {
     measureContext = document.createElement('canvas').getContext('2d');
   }
@@ -142,8 +152,8 @@ function drawTile(title: string, subtitle: string): HTMLCanvasElement | undefine
       y += TITLE_SIZE + 4;
     }
     if (subtitle) {
-      ctx.font = `600 ${SUBTITLE_SIZE}px ${FONT}`;
-      ctx.fillStyle = SUBTITLE_COLOR;
+      ctx.font = `${anchor ? 700 : 600} ${SUBTITLE_SIZE}px ${FONT}`;
+      ctx.fillStyle = anchor ? ANCHOR_COLOR : SUBTITLE_COLOR;
       ctx.fillText(subtitle, canvas.width / 2, y);
     }
   }
@@ -154,6 +164,7 @@ function drawTile(title: string, subtitle: string): HTMLCanvasElement | undefine
 function entriesOf(spec: LabelSpec): Entry[] {
   const out: Entry[] = [];
   const both = Boolean(spec.title) && Boolean(spec.subtitle);
+  const anchor = spec.kind === 'vertical';
 
   if (spec.title) {
     const canvas = drawTile(spec.title, '');
@@ -176,13 +187,19 @@ function entriesOf(spec: LabelSpec): Entry[] {
   }
 
   if (spec.subtitle) {
-    const canvas = drawTile(spec.title, spec.subtitle);
+    const canvas = drawTile(spec.title, spec.subtitle, anchor);
     if (canvas) {
       out.push({
         canvas,
-        height: both ? FULL_HEIGHT : SINGLE_HEIGHT,
+        // Якорь крупнее обычной однострочной подписи и проступает раньше:
+        // лестницу человек ищет глазами до того, как разберёт номера.
+        height: both ? FULL_HEIGHT : anchor ? ANCHOR_HEIGHT : SINGLE_HEIGHT,
         position: spec.position,
-        range: both ? [FULL_IN[0], FULL_IN[1], 0, 0] : [NUMBER_IN[0], NUMBER_IN[1], 0, 0],
+        range: both
+          ? [FULL_IN[0], FULL_IN[1], 0, 0]
+          : anchor
+            ? [ANCHOR_IN[0], ANCHOR_IN[1], 0, 0]
+            : [NUMBER_IN[0], NUMBER_IN[1], 0, 0],
       });
     }
   }

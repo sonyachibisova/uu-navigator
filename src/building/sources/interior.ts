@@ -219,6 +219,7 @@ function roomView(frame: FloorFrame, room: Room, tag: string): RoomView {
     room.planNumber || room.name
       ? {
           name: `${prefix}.label`,
+          kind: 'room',
           title: room.planNumber ?? '',
           subtitle: room.name,
           position: { x: center.x, y: frame.base + INTERIOR.labelHeight, z: center.z },
@@ -360,6 +361,7 @@ function verticalView(frame: FloorFrame, link: VerticalLink, tag: string): Verti
     parts,
     label: {
       name: `${prefix}.label`,
+      kind: 'vertical',
       title: '',
       subtitle: link.name,
       position: { x: center.x, y: frame.base + INTERIOR.labelHeight, z: center.z },
