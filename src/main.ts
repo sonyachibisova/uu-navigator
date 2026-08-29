@@ -165,7 +165,7 @@ function main(): void {
    */
   function updateRoute(state: SceneState): void {
     const from = state.routeFromId;
-    const to = state.selectedRoomId;
+    const to = state.routeToId;
     // Если человек попросил маршрут без лестниц, а его нет, показывается
     // обычный: молча отдать «пути нет» там, где путь есть, — обман.
     // О подмене говорит карточка.
@@ -211,10 +211,24 @@ function main(): void {
       const floor = building.floors.find((item) => item.level === next.activeFloor);
       if (floor) cameraHandle.frameFloor(floor.elevation + floor.height / 2, floor.height);
     }
+    // Выбранное помещение достраивает незаполненный конец маршрута: человек,
+    // назначивший «отсюда», следующим касанием говорит «сюда», и наоборот.
+    // Явные кнопки при этом остаются: они нужны на первом конце.
+    if (next.selectedRoomId && next.selectedRoomId !== prev.selectedRoomId) {
+      const id = next.selectedRoomId;
+      if (next.routeFromId && !next.routeToId && next.routeFromId !== id) {
+        store.set({ routeToId: id });
+        return;
+      }
+      if (next.routeToId && !next.routeFromId && next.routeToId !== id) {
+        store.set({ routeFromId: id });
+        return;
+      }
+    }
     if (
       next.routeFromId !== prev.routeFromId ||
+      next.routeToId !== prev.routeToId ||
       next.stepFree !== prev.stepFree ||
-      next.selectedRoomId !== prev.selectedRoomId ||
       next.activeFloor !== prev.activeFloor ||
       next.mode !== prev.mode
     ) {
@@ -254,10 +268,13 @@ function main(): void {
       store.set({ stepFree: value });
       updateRoute(store.state);
     },
-    setRouteFrom(id: string | null): void {
-      // Сброс снимает и выбранное помещение: иначе карточка остаётся стоять
-      // с кнопкой «маршрут отсюда», как будто ничего не изменилось.
-      store.set(id === null ? { routeFromId: null } : { routeFromId: id });
+    setRouteEnd(end: 'from' | 'to', id: string): void {
+      store.set(end === 'from' ? { routeFromId: id } : { routeToId: id });
+      updateRoute(store.state);
+      frameShownRoute(store.state);
+    },
+    clearRoute(): void {
+      store.set({ routeFromId: null, routeToId: null });
       updateRoute(store.state);
     },
     // Найденное помещение показывается целиком: его этаж, подсветка и кадр
@@ -300,12 +317,24 @@ function main(): void {
   const debug = initDebugOverlay(rendererHandle.renderer);
   let bootCleared = false;
 
+  /** Порог, с которого здание считается раскрытым для интерфейса. */
+  const OPENED_AT = 0.6;
+  let openedShown = false;
+
   const loop = createLoop(rendererHandle.renderer, (dt) => {
     cameraHandle.update(dt);
     // Тень пересчитывается только когда что-то менялось: солнце и геометрия
     // статичны, поэтому в установившемся кадре теневого прохода нет вовсе.
     if (building.update(dt, cameraHandle.camera.position, cameraHandle.overviewDistance())) {
       environment.requestShadowUpdate();
+    }
+    // Раскрытие идёт от близости камеры и меняется в кадре, а не в сторе:
+    // интерфейс узнаёт о нём отсюда, и только когда признак действительно
+    // изменился — иначе это была бы работа с DOM на каждом кадре.
+    const opened = building.openness() > OPENED_AT;
+    if (opened !== openedShown) {
+      openedShown = opened;
+      ui.setOpened(opened);
     }
     debug?.beforeFrame();
     rendererHandle.renderer.render(scene, cameraHandle.camera);

@@ -57,7 +57,13 @@ const STYLE = `
 
 /* Жест принадлежит сцене: перехватывают его только кнопки и раскрытая легенда. */
 #ui-root button, #ui-root input { pointer-events: auto; touch-action: manipulation; }
-#ui-root button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+/* Кольцо двухцветное: белое на тёмных панелях, синее на светлых — одно
+   и то же обводится и на карточке, и на кнопке этажа. */
+#ui-root button:focus-visible, #ui-root input:focus-visible {
+  outline: 2px solid #143a8a; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(255,255,255,.9); }
+/* На телефоне нет наведения: отклик на касание — единственное подтверждение,
+   что палец попал. */
+#ui-root button:active { filter: brightness(1.25); }
 #ui-root [hidden] { display: none; }
 
 /* Поиск — первое, что видит человек: он приходит с вопросом «где 4.09»,
@@ -65,20 +71,27 @@ const STYLE = `
 #ui-search { position: absolute; z-index: 5; top: var(--gap-t);
   left: var(--gap-l); right: var(--gap-r); }
 #ui-search .field { pointer-events: auto; display: flex; align-items: center; gap: 8px;
-  box-sizing: border-box; height: 44px; padding: 0 6px 0 12px; border-radius: 12px;
+  box-sizing: border-box; height: 48px; padding: 0 4px 0 12px; border-radius: 12px;
   background: rgba(255,255,255,.95); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
-#ui-search input { flex: 1; min-width: 0; height: 40px; border: 0; background: none; color: #111;
-  font: 400 15px system-ui, sans-serif; }
+/* Кегль ровно 16: Safari на iPhone увеличивает страницу при фокусе поля
+   меньше шестнадцати, и человек остаётся в зуме поверх сцены. */
+#ui-search input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: #111;
+  font: 400 16px system-ui, sans-serif; }
+/* Свой крестик уже есть — нативный рядом с ним читается как второй. */
+#ui-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
 #ui-search input::placeholder { color: #8a8a8a; }
 #ui-search input:focus { outline: none; }
-#ui-search .clear { width: 36px; height: 36px; border: 0; border-radius: 10px; background: none;
+#ui-search .clear { width: 44px; height: 44px; border: 0; border-radius: 10px; background: none;
   color: #6b6b6b; font: 400 18px/1 system-ui, sans-serif; cursor: pointer; }
 #ui-search .list { pointer-events: auto; margin-top: 6px; overflow-y: auto; border-radius: 12px;
   max-height: min(44vh, 320px); background: rgba(255,255,255,.97);
   box-shadow: 0 6px 22px rgba(0,0,0,.28); }
-#ui-search .list button { display: block; width: 100%; box-sizing: border-box; text-align: left;
-  padding: 9px 12px; border: 0; border-bottom: 1px solid rgba(0,0,0,.07); border-radius: 0;
-  background: none; color: #111; font: 400 14px system-ui, sans-serif; cursor: pointer; }
+#ui-search .list button { display: block; width: 100%; min-height: 48px; box-sizing: border-box;
+  text-align: left; padding: 8px 12px; border: 0; border-bottom: 1px solid rgba(0,0,0,.07);
+  border-radius: 0; background: none; color: #111; font: 400 15px system-ui, sans-serif;
+  cursor: pointer; }
+#ui-search .count { padding: 8px 12px; border-top: 1px solid rgba(0,0,0,.07);
+  color: #6b6b6b; font-size: 13px; }
 #ui-search .list button:last-child { border-bottom: 0; }
 #ui-search .list button b { margin-right: 6px; color: #143a8a; }
 #ui-search .list button .where { display: block; color: #6b6b6b; font-size: 12px; }
@@ -86,26 +99,32 @@ const STYLE = `
 
 #ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 54px); left: var(--gap-l); right: var(--gap-r);
   box-sizing: border-box; min-height: 44px; padding: 10px 52px 10px 12px; border-radius: 10px;
-  background: rgba(0,0,0,.62); color: #fff; font-size: 13px; line-height: 1.45; }
+  background: rgba(0,0,0,.68); color: #fff; font-size: 14px; line-height: 1.45; }
 #ui-hint .close { position: absolute; top: 0; right: 0; width: 44px; height: 44px;
   border: 0; border-radius: 10px; background: none; color: #fff; font: 400 20px/1 system-ui, sans-serif;
   cursor: pointer; }
 
+/* Высота ограничена: карточка с шестью шагами маршрута закрывала кнопку
+   «корпус целиком» — единственный способ вернуться одним действием. */
 #ui-card { position: absolute; z-index: 3; left: var(--gap-l); right: var(--gap-r);
-  bottom: calc(var(--gap-b) + 54px); box-sizing: border-box; padding: 10px 14px; border-radius: 12px;
+  bottom: calc(var(--gap-b) + 54px); box-sizing: border-box; padding: 10px 44px 10px 14px;
+  max-height: 46vh; overflow-y: auto; border-radius: 12px;
   background: rgba(255,255,255,.95); color: #111; font-size: 14px; line-height: 1.4;
   box-shadow: 0 6px 22px rgba(0,0,0,.32); }
+#ui-card .close { position: absolute; top: 4px; right: 4px; width: 40px; height: 40px; border: 0;
+  border-radius: 10px; background: none; color: #6b6b6b; font: 400 20px/1 system-ui, sans-serif;
+  cursor: pointer; }
 #ui-card .title { font-size: 15px; }
 #ui-card .title b { margin-right: 6px; font-size: 18px; color: #143a8a; }
 #ui-card .where { color: #6b6b6b; font-size: 13px; }
 #ui-card .actions { display: flex; gap: 8px; margin-top: 8px; }
-#ui-card .actions button { height: 36px; padding: 0 14px; border: 0; border-radius: 10px;
+#ui-card .actions button { height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
   background: #143a8a; color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; }
 #ui-card .actions button.ghost { background: rgba(0,0,0,.08); color: #333; }
 #ui-card .route { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.1); }
 #ui-card .route .head { font-size: 13px; color: #143a8a; font-weight: 600; }
 #ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-#ui-card .route .mode button { height: 32px; padding: 0 12px; border: 0; border-radius: 9px;
+#ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
   background: rgba(0,0,0,.08); color: #333; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 #ui-card .route .mode button.on { background: #143a8a; color: #fff; }
 #ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 13px;
@@ -114,15 +133,17 @@ const STYLE = `
 /* Колонна этажей живёт в полосе между подсказкой и карточкой: заданы и top,
    и bottom, поэтому она не наезжает ни на ту, ни на другую даже на коротком экране. */
 #ui-floors { position: absolute; z-index: 2; right: var(--gap-r);
-  top: calc(var(--gap-t) + 96px); bottom: calc(var(--gap-b) + 150px);
+  top: calc(var(--gap-t) + 96px); bottom: calc(var(--gap-b) + var(--card-h, 150px) + 16px);
   display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 10px; }
 #ui-floors .row { display: flex; flex-direction: column; gap: 10px; }
 #ui-floors button { min-width: 46px; height: 46px; padding: 0 8px; border: 0; border-radius: 12px;
   background: rgba(0,0,0,.62); color: #fff; font: 700 16px system-ui, sans-serif; cursor: pointer; }
 #ui-floors button.on { background: #2c7a2c; }
-#ui-floors button:disabled { opacity: .35; cursor: default; }
-#ui-floors .note { max-width: 160px; padding: 5px 8px; border-radius: 8px; background: rgba(0,0,0,.62);
-  color: #fff; font-size: 11px; line-height: 1.3; text-align: right; }
+/* Прозрачность на полупрозрачной подложке давала контраст около 2:1 —
+   цифры неактивных этажей не читались. Состояние задано цветом. */
+#ui-floors button:disabled { background: rgba(0,0,0,.45); color: #c9c9c9; cursor: default; }
+#ui-floors .note { max-width: 170px; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.7);
+  color: #fff; font-size: 13px; line-height: 1.3; text-align: right; }
 
 /* Главное действие: живёт в том же слоте, что и карточка помещения, и они
    не встречаются — кнопка видна, только пока не выбран этаж. */
@@ -138,7 +159,7 @@ const STYLE = `
 #ui-legend .list { pointer-events: auto; box-sizing: border-box;
   width: min(260px, calc(100vw - var(--gap-l) - var(--gap-r)));
   max-height: min(46vh, 340px); overflow-y: auto; padding: 10px 12px; border-radius: 12px;
-  background: rgba(0,0,0,.72); color: #fff; font-size: 12px; line-height: 1.6; }
+  background: rgba(0,0,0,.78); color: #fff; font-size: 13px; line-height: 1.6; }
 #ui-legend .list i { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
   margin-right: 8px; vertical-align: -1px; }
 
@@ -165,6 +186,12 @@ export interface UiHandle {
    * `unreachable` — обе точки выбраны, а пути между ними нет.
    */
   showRoute: (route: Route | undefined, unreachable?: boolean) => void;
+  /**
+   * Сообщить, раскрыто ли здание. Кнопка «заглянуть внутрь» зовёт сделать
+   * то, что уже сделано, если её не убрать: раскрытие идёт от близости
+   * камеры, а не от режима, и режим о нём ничего не знает.
+   */
+  setOpened: (opened: boolean) => void;
   dispose: () => void;
 }
 
@@ -184,8 +211,10 @@ export interface UiActions {
    * решает точка сборки.
    */
   showRoom: (id: string) => void;
-  /** Запомнить точку отправления или забыть её (`null`). */
-  setRouteFrom: (id: string | null) => void;
+  /** Назначить конец маршрута: начало или цель. */
+  setRouteEnd: (end: 'from' | 'to', id: string) => void;
+  /** Убрать маршрут целиком. */
+  clearRoute: () => void;
   /** Переключить режим «без лестниц». */
   setStepFree: (value: boolean) => void;
 }
@@ -282,9 +311,15 @@ export function createUi(
   const onScenePointer = (event: PointerEvent): void => {
     const target = event.target;
     if (target instanceof Node && container.contains(target)) return;
+    // Тап «мимо» списка закрывал его — и тем же касанием выбирал помещение
+    // под пальцем: одно действие давало два несвязанных результата. Событие
+    // гасится в фазе перехвата, поэтому до сцены оно не доходит.
+    const closing = !searchList.hidden || !legendList.hidden;
     dismissHint();
     closeLegend();
     closeSearch();
+    searchInput.blur();
+    if (closing) event.stopPropagation();
   };
   window.addEventListener('pointerdown', onScenePointer, true);
 
@@ -376,7 +411,15 @@ export function createUi(
       if (rank >= 0) ranked.push({ item, rank });
     }
     ranked.sort((a, b) => a.rank - b.rank || a.item.number.localeCompare(b.item.number, 'ru'));
+    lastFoundCount = ranked.length;
     return ranked.slice(0, SEARCH_LIMIT).map((entry) => entry.item);
+  }
+
+  /** Сколько всего нашлось по последнему запросу: для строки «показаны N из M». */
+  let lastFoundCount = 0;
+  function countRooms(query: string): number {
+    findRooms(query);
+    return lastFoundCount;
   }
 
   const search = document.createElement('div');
@@ -400,7 +443,11 @@ export function createUi(
   searchList.className = 'list';
   searchList.id = 'ui-search-list';
   searchList.hidden = true;
-  searchList.setAttribute('role', 'listbox');
+  // Роль `listbox` без `option` и без стрелок читалась скринридером как
+  // пустой список. Пока паттерн combobox не сделан целиком, честнее обычные
+  // кнопки и счётчик находок словами.
+  searchList.setAttribute('role', 'group');
+  searchList.setAttribute('aria-label', 'Найденные помещения');
   // Отладочный оверлей занимает тот же угол: при ?debug=1 поиск уходит ниже.
   if (debugPanel) search.style.top = 'calc(var(--gap-t) + 172px)';
   search.append(searchField, searchList);
@@ -414,6 +461,9 @@ export function createUi(
       searchList.hidden = true;
       searchList.replaceChildren();
     }
+    // Подсказка тёмная и просвечивала сквозь список: пока список открыт,
+    // она прячется, а после закрытия возвращается, если ещё не отработала.
+    hint.hidden = hintGone;
   }
 
   function chooseRoom(id: string): void {
@@ -442,6 +492,7 @@ export function createUi(
       searchList.hidden = false;
       return;
     }
+    hint.hidden = true;
     for (const item of found) {
       const line = document.createElement('button');
       line.type = 'button';
@@ -458,6 +509,15 @@ export function createUi(
       line.append(title, where);
       line.addEventListener('click', () => chooseRoom(item.id));
       searchList.appendChild(line);
+    }
+    // Список обрезан — об этом надо сказать: иначе человек, набравший «4.0»
+    // и не увидевший 4.09 среди первых восьми, решает, что её не существует.
+    const total = countRooms(searchInput.value);
+    if (total > found.length) {
+      const count = document.createElement('div');
+      count.className = 'count';
+      count.textContent = `Показаны ${found.length} из ${total} — уточните запрос`;
+      searchList.appendChild(count);
     }
     searchList.hidden = false;
   }
@@ -488,10 +548,21 @@ export function createUi(
   const card = document.createElement('div');
   card.id = 'ui-card';
   card.hidden = true;
-  card.setAttribute('role', 'status');
-  card.setAttribute('aria-live', 'polite');
+  const cardClose = document.createElement('button');
+  cardClose.type = 'button';
+  cardClose.className = 'close';
+  cardClose.textContent = '✕';
+  cardClose.setAttribute('aria-label', 'Закрыть карточку помещения');
+  cardClose.addEventListener('click', () => {
+    store.set({ selectedRoomId: null });
+  });
   const cardTitle = document.createElement('div');
   cardTitle.className = 'title';
+  // Живая область — только заголовок. Раньше ею была вся карточка, и
+  // скринридер зачитывал название, этаж и все шесть шагов маршрута заново
+  // на каждое движение указателя по плану.
+  cardTitle.setAttribute('role', 'status');
+  cardTitle.setAttribute('aria-live', 'polite');
   const cardNumber = document.createElement('b');
   const cardName = document.createElement('span');
   cardTitle.append(cardNumber, cardName);
@@ -505,13 +576,18 @@ export function createUi(
   cardActions.className = 'actions';
   const routeFromButton = document.createElement('button');
   routeFromButton.type = 'button';
-  routeFromButton.textContent = 'Маршрут отсюда';
+  routeFromButton.textContent = 'Отсюда';
+  routeFromButton.setAttribute('aria-label', 'Построить маршрут от этого помещения');
+  const routeToButton = document.createElement('button');
+  routeToButton.type = 'button';
+  routeToButton.textContent = 'Сюда';
+  routeToButton.setAttribute('aria-label', 'Построить маршрут к этому помещению');
   const routeClearButton = document.createElement('button');
   routeClearButton.type = 'button';
   routeClearButton.className = 'ghost';
   routeClearButton.textContent = 'Сбросить';
   routeClearButton.hidden = true;
-  cardActions.append(routeFromButton, routeClearButton);
+  cardActions.append(routeFromButton, routeToButton, routeClearButton);
 
   const routeBlock = document.createElement('div');
   routeBlock.className = 'route';
@@ -532,11 +608,15 @@ export function createUi(
 
   routeFromButton.addEventListener('click', () => {
     const id = store.state.selectedRoomId;
-    if (id) actions.setRouteFrom(id);
+    if (id) actions.setRouteEnd('from', id);
   });
-  routeClearButton.addEventListener('click', () => actions.setRouteFrom(null));
+  routeToButton.addEventListener('click', () => {
+    const id = store.state.selectedRoomId;
+    if (id) actions.setRouteEnd('to', id);
+  });
+  routeClearButton.addEventListener('click', () => actions.clearRoute());
 
-  card.append(cardTitle, cardWhere, cardActions, routeBlock);
+  card.append(cardClose, cardTitle, cardWhere, cardActions, routeBlock);
   container.appendChild(card);
 
   /* ---------- главное действие: подлёт камеры ---------- */
@@ -595,7 +675,12 @@ export function createUi(
 
   const homeButton = document.createElement('button');
   homeButton.type = 'button';
-  homeButton.textContent = '⌂';
+  // Глиф «⌂» есть не во всех системных шрифтах Android: там, где его нет,
+  // на кнопке возвращения к общему виду оказывался пустой квадрат.
+  homeButton.innerHTML =
+    '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">' +
+    '<path d="M3 9.2 10 3.5l7 5.7V17H12v-4.6H8V17H3z" fill="none" stroke="currentColor" ' +
+    'stroke-width="1.8" stroke-linejoin="round"/></svg>';
   homeButton.title = 'Корпус целиком';
   homeButton.setAttribute('aria-label', 'Показать корпус целиком');
   homeButton.addEventListener('click', () => {
@@ -688,17 +773,23 @@ export function createUi(
 
   /** Последний показанный маршрут: из него собирается блок в карточке. */
   let shownRoute: Route | undefined;
+  /** Раскрыто ли здание сейчас: об этом сообщает сцена, кадрами. */
+  let opened = false;
   /** Обе точки выбраны, а пути между ними не нашлось. */
   let routeUnreachable = false;
 
   function renderRoute(): void {
     const state = store.state;
-    const waiting = state.routeFromId !== null && !shownRoute;
-    routeClearButton.hidden = state.routeFromId === null;
+    const started = state.routeFromId !== null || state.routeToId !== null;
+    const waiting = started && !shownRoute;
+    routeClearButton.hidden = !started;
+    // Кнопка конца прячется, только когда этот конец уже назначен: человек,
+    // назначивший цель, должен видеть предложение назначить начало.
     routeFromButton.hidden = state.routeFromId !== null;
+    routeToButton.hidden = state.routeToId !== null;
     stepFreeButton.classList.toggle('on', state.stepFree);
     stepFreeButton.setAttribute('aria-pressed', state.stepFree ? 'true' : 'false');
-    routeMode.hidden = state.routeFromId === null;
+    routeMode.hidden = !started;
 
     if (shownRoute) {
       routeHead.textContent = `${shownRoute.fromName} → ${shownRoute.toName}: ${Math.round(shownRoute.meters)} м, ${shownRoute.minutes} мин`;
@@ -724,12 +815,17 @@ export function createUi(
     }
 
     if (waiting) {
-      routeHead.textContent = 'Теперь выберите, куда идти — тапом или поиском';
+      routeHead.textContent =
+        state.routeFromId !== null
+          ? 'Теперь выберите, куда идти — тапом или поиском'
+          : 'Теперь выберите, откуда идти — тапом или поиском';
       routeSteps.replaceChildren();
       routeBlock.hidden = false;
+      measureCard();
       return;
     }
     routeBlock.hidden = true;
+    measureCard();
   }
 
   function render(state: SceneState): void {
@@ -738,7 +834,7 @@ export function createUi(
       shownFloorKey = floorKey;
       const whole = state.mode === 'whole';
       // Выбран этаж — здание уже раскрыто срезом, и звать внутрь больше некуда.
-      revealButton.hidden = !whole;
+      revealButton.hidden = !whole || opened;
       homeButton.classList.toggle('on', whole);
       homeButton.setAttribute('aria-pressed', whole ? 'true' : 'false');
       for (const item of floorButtons) {
@@ -757,6 +853,7 @@ export function createUi(
     const room = shownRoomId ? building.roomById(shownRoomId) : undefined;
     if (!room) {
       card.hidden = true;
+      measureCard();
       return;
     }
     const number = room.planNumber ?? '';
@@ -766,12 +863,28 @@ export function createUi(
     cardWhere.textContent = `${room.floor} этаж, ${building.passport.shortName}`;
     renderRoute();
     card.hidden = false;
+    measureCard();
+  }
+
+  /**
+   * Сообщить раскладке фактическую высоту карточки. Колонна этажей отступает
+   * снизу именно на неё: постоянное число не спасало — карточка с шестью
+   * шагами маршрута закрывала кнопку «корпус целиком».
+   */
+  function measureCard(): void {
+    const height = card.hidden ? 0 : card.offsetHeight;
+    container.style.setProperty('--card-h', `${Math.max(height, 96)}px`);
   }
 
   render(store.state);
   const unsubscribe = store.subscribe((next) => render(next));
 
   return {
+    setOpened(value: boolean): void {
+      if (opened === value) return;
+      opened = value;
+      revealButton.hidden = store.state.mode !== 'whole' || opened;
+    },
     showRoute(route: Route | undefined, unreachable = false): void {
       shownRoute = route;
       routeUnreachable = unreachable;

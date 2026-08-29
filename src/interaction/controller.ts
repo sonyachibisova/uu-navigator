@@ -29,6 +29,11 @@ export interface InteractionOptions {
 /** Порог, за которым движение указателя считается вращением камеры, а не кликом. */
 const DRAG_THRESHOLD = 6;
 /**
+ * Тот же порог для пальца. Палец на тапе смещается заметно больше мыши,
+ * и на шести пикселях вращение то и дело читалось как выбор.
+ */
+const TOUCH_DRAG_THRESHOLD = 12;
+/**
  * Степень раскрытия, начиная с которой клик по помещению разрешён в режиме
  * «здание целиком». Пока оболочка цела, интерьера за ней не видно, и попадание
  * по плите означало бы выбор помещения сквозь глухую стену.
@@ -45,6 +50,10 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
   let downX = 0;
   let downY = 0;
   let startedOnCanvas = false;
+  /** Сколько указателей сейчас на экране: по двум пальцам выбор не делается. */
+  let activePointers = 0;
+  /** Был ли за время касания второй палец — пинч не должен выбирать помещение. */
+  let multiTouch = false;
 
   function pickAt(event: PointerEvent | MouseEvent): string | null {
     const state = store.state;
@@ -77,19 +86,36 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
   }
 
   function onPointerDown(event: PointerEvent): void {
+    activePointers += 1;
+    if (activePointers > 1) multiTouch = true;
+    if (activePointers > 1) return;
+    multiTouch = false;
     startedOnCanvas = event.target === canvas;
     downX = event.clientX;
     downY = event.clientY;
   }
 
+  /** Указатель ушёл с экрана — как обычным отпусканием, так и отменой. */
+  function releasePointer(): void {
+    activePointers = Math.max(0, activePointers - 1);
+  }
+
   function onPointerUp(event: PointerEvent): void {
+    releasePointer();
+    // Приближение двумя пальцами — основной жест разглядывания: один из них
+    // почти не двигается и раньше открывал карточку случайного помещения.
+    if (multiTouch) {
+      if (activePointers === 0) multiTouch = false;
+      startedOnCanvas = false;
+      return;
+    }
     if (!startedOnCanvas) return;
     startedOnCanvas = false;
     // Орбитальные контролы захватывают указатель, поэтому pointerup приходит не
     // в канвас, а в элемент захвата: слушаем на окне и сами отличаем клик от вращения.
+    const threshold = event.pointerType === 'touch' ? TOUCH_DRAG_THRESHOLD : DRAG_THRESHOLD;
     const dragged =
-      Math.abs(event.clientX - downX) > DRAG_THRESHOLD ||
-      Math.abs(event.clientY - downY) > DRAG_THRESHOLD;
+      Math.abs(event.clientX - downX) > threshold || Math.abs(event.clientY - downY) > threshold;
     if (dragged) return;
     const id = pickAt(event);
     store.set({ selectedRoomId: id });
@@ -102,7 +128,19 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
     }
   }
 
+  /** Набирают текст: клавиши принадлежат полю, а не сцене. */
+  function typingInField(target: EventTarget | null): boolean {
+    if (!(target instanceof HTMLElement)) return false;
+    if (target.isContentEditable) return true;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+  }
+
   function onKeyDown(event: KeyboardEvent): void {
+    // Человек набирает «4.09» в поиске: «4» переключала этаж, «0» сбрасывала
+    // вид к общему и уводила камеру домой. Ровно тот сценарий, ради которого
+    // поиск и делался, ломал сцену под пальцем.
+    if (typingInField(event.target)) return;
     if (event.key === 'Escape' || event.key === '0') {
       store.set({
         mode: 'whole',
@@ -133,6 +171,7 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
   window.addEventListener('pointermove', onPointerMove);
   window.addEventListener('pointerdown', onPointerDown);
   window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', releasePointer);
   window.addEventListener('keydown', onKeyDown);
 
   return {
@@ -140,6 +179,7 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('pointercancel', releasePointer);
       window.removeEventListener('keydown', onKeyDown);
     },
   };
