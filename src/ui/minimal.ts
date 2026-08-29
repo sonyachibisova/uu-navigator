@@ -608,7 +608,50 @@ export function createUi(
   routeClearButton.className = 'ghost';
   routeClearButton.textContent = 'Сбросить';
   routeClearButton.hidden = true;
-  cardActions.append(routeFromButton, routeToButton, routeClearButton);
+  // Ссылка на помещение или на маршрут: преподаватель шлёт её студенту,
+  // и тот попадает сразу к цели. Тот же адрес, что печатается на наклейке.
+  const shareButton = document.createElement('button');
+  shareButton.type = 'button';
+  shareButton.className = 'ghost';
+  shareButton.textContent = 'Ссылка';
+  shareButton.setAttribute('aria-label', 'Скопировать ссылку на это место');
+  cardActions.append(routeFromButton, routeToButton, routeClearButton, shareButton);
+
+  /** Собрать адрес с текущими концами маршрута. */
+  function shareUrl(): string {
+    const state = store.state;
+    const url = new URL(window.location.href);
+    url.search = '';
+    const target = state.routeToId ?? state.selectedRoomId;
+    if (state.routeFromId) url.searchParams.set('from', state.routeFromId);
+    if (target) url.searchParams.set('to', target);
+    return url.toString();
+  }
+
+  let shareTimer = 0;
+  shareButton.addEventListener('click', () => {
+    const url = shareUrl();
+    const done = (text: string): void => {
+      shareButton.textContent = text;
+      window.clearTimeout(shareTimer);
+      shareTimer = window.setTimeout(() => {
+        shareButton.textContent = 'Ссылка';
+      }, 2500);
+    };
+    // Буфер обмена доступен не везде (нет https, отказ в правах) — тогда
+    // ссылка показывается в поле поиска, откуда её можно скопировать руками.
+    const fallback = (): void => {
+      searchInput.value = url;
+      searchInput.select();
+      done('Скопируйте');
+    };
+    const clipboard = navigator.clipboard;
+    if (!clipboard) {
+      fallback();
+      return;
+    }
+    void clipboard.writeText(url).then(() => done('Скопировано'), fallback);
+  });
 
   const routeBlock = document.createElement('div');
   routeBlock.className = 'route';
@@ -1030,6 +1073,7 @@ export function createUi(
     dispose(): void {
       unsubscribe();
       window.clearTimeout(noteTimer);
+      window.clearTimeout(shareTimer);
       window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('pointerdown', onScenePointer, true);
       window.removeEventListener('keydown', onKeyDown);

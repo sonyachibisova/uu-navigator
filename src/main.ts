@@ -54,11 +54,12 @@ const NO_DATA_TEXT = 'Не удалось загрузить план, обно�
  * ответить на «я тут» без планировок первых этажей и без геолокации,
  * которая в здании всё равно не работает.
  */
-function startFromUrl(): string | null {
+function routeFromUrl(): { from: string | null; to: string | null } {
   try {
-    return new URLSearchParams(window.location.search).get('from');
+    const params = new URLSearchParams(window.location.search);
+    return { from: params.get('from'), to: params.get('to') };
   } catch {
-    return null;
+    return { from: null, to: null };
   }
 }
 
@@ -343,12 +344,30 @@ function main(): void {
   });
   uiRef.current = ui;
 
-  // Наклейка с кодом привела человека сюда: отправная точка уже известна,
-  // остаётся спросить, куда он идёт.
-  const startId = startFromUrl();
-  if (startId && routeGraph.anchorNode(startId) !== undefined) {
-    store.set({ routeFromId: startId });
+  // Ссылка знает, откуда и куда: `?from=` приходит с наклейки у лестницы,
+  // `?to=` — из письма или расписания, где ссылку прислали на помещение.
+  // Вместе они дают готовый маршрут по одному переходу.
+  const link = routeFromUrl();
+  const startId = link.from && routeGraph.anchorNode(link.from) !== undefined ? link.from : null;
+  const endId = link.to && routeGraph.anchorNode(link.to) !== undefined ? link.to : null;
+  if (startId || endId) {
+    store.set({
+      routeFromId: startId,
+      routeToId: endId,
+      ...(endId ? { selectedRoomId: endId } : {}),
+    });
     updateRoute(store.state);
+    if (endId) {
+      const room = building.roomById(endId);
+      const place = room ? undefined : building.verticalById(endId);
+      const level = room ? room.floor : place?.level;
+      if (level !== undefined) store.set({ mode: 'floor', activeFloor: level });
+      if (shownRoute) frameShownRoute(store.state);
+      else if (room) {
+        focusPoint.set(room.focus.x, room.focus.y, room.focus.z);
+        cameraHandle.frameRoom(focusPoint, ROOM_WINDOW);
+      }
+    }
   }
   const interaction = createInteraction({
     canvas: rendererHandle.renderer.domElement,

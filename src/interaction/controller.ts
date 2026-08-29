@@ -75,14 +75,34 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
     return hit ? hit.room.id : null;
   }
 
-  function onPointerMove(event: PointerEvent): void {
-    if (event.buttons !== 0 || event.target !== canvas) {
-      if (store.state.hoveredRoomId !== null) store.set({ hoveredRoomId: null });
-      return;
-    }
+  /**
+   * Наведение обрабатывается не чаще кадра. Мышь шлёт события сотнями в
+   * секунду, а каждое из них — это принудительный пересчёт раскладки
+   * (`getBoundingClientRect`) и полный луч по плитам и оболочке. На телефоне
+   * это незаметно (при касании обработчик выходит сразу), на ноутбуке —
+   * сотня лишних лучей в секунду просто за движение мышью.
+   */
+  let hoverPending: PointerEvent | undefined;
+  let hoverFrame = 0;
+
+  function handleHover(): void {
+    hoverFrame = 0;
+    const event = hoverPending;
+    hoverPending = undefined;
+    if (!event) return;
     const id = pickAt(event);
     store.set({ hoveredRoomId: id });
     canvas.style.cursor = id ? 'pointer' : '';
+  }
+
+  function onPointerMove(event: PointerEvent): void {
+    if (event.buttons !== 0 || event.target !== canvas) {
+      hoverPending = undefined;
+      if (store.state.hoveredRoomId !== null) store.set({ hoveredRoomId: null });
+      return;
+    }
+    hoverPending = event;
+    if (hoverFrame === 0) hoverFrame = requestAnimationFrame(handleHover);
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -176,6 +196,7 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
 
   return {
     dispose(): void {
+      if (hoverFrame !== 0) cancelAnimationFrame(hoverFrame);
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointerup', onPointerUp);
