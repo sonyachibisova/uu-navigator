@@ -9,8 +9,8 @@
       "id": "f05-admin-01",
       "planNumber": null,
       "name": "Администрация (южный блок)",
-      "nameConfirmed": true,
-      "nameSource": "plan",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
       "type": "admin",
       "floor": 5,
       "bounds": {
@@ -34,8 +34,8 @@
       "id": "f05-admin-02",
       "planNumber": null,
       "name": "Администрация (северный блок)",
-      "nameConfirmed": true,
-      "nameSource": "plan",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
       "type": "admin",
       "floor": 5,
       "bounds": {
@@ -525,8 +525,8 @@
       "id": "f05-wc-01",
       "planNumber": null,
       "name": "Санузел 5 этажа (западный)",
-      "nameConfirmed": true,
-      "nameSource": "plan",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
       "type": "wc",
       "floor": 5,
       "bounds": {
@@ -550,8 +550,8 @@
       "id": "f05-wc-02",
       "planNumber": null,
       "name": "Санузел 5 этажа (восточный)",
-      "nameConfirmed": true,
-      "nameSource": "plan",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
       "type": "wc",
       "floor": 5,
       "bounds": {

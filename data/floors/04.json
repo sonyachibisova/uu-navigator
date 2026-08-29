@@ -160,7 +160,7 @@
           "id": "f04-gallery-01-d02",
           "side": "east",
           "x": -18.508,
-          "z": -3.9,
+          "z": -3.75,
           "width": 1.4
         }
       ]
@@ -475,8 +475,8 @@
       "id": "f04-wc-01",
       "planNumber": null,
       "name": "Санузел 4 этажа (восточный блок)",
-      "nameConfirmed": true,
-      "nameSource": "plan",
+      "nameConfirmed": false,
+      "nameSource": "assumed",
       "type": "wc",
       "floor": 4,
       "bounds": {

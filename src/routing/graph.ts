@@ -396,13 +396,16 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       for (let level = lower + 1; level <= upper; level += 1) {
         rise += heights.get(level) ?? heights.get(lower) ?? 3.6;
       }
+      // Множитель этажности здесь не нужен: `rise` уже просуммировал высоты
+      // всех пройденных этажей. Пока размеченные этажи соседние, ошибка
+      // не видна, но связь, пропускающая этаж, удвоила бы стоимость.
       const factor = view.kind === 'lift' ? LIFT_FACTOR : STAIR_FACTOR;
       // Лифт считается доступным по своей природе, лестница — только если
       // это подтверждено данными. `unknown` в данных трактуется как «нет»:
       // ошибиться в эту сторону значит предложить обход, ошибиться
       // в другую — привести человека к ступеням, которые он не пройдёт.
       const stairs = view.kind !== 'lift' && !view.accessible;
-      link(from, to, rise * factor * (upper - lower), stairs);
+      link(from, to, rise * factor, stairs);
     }
   }
 

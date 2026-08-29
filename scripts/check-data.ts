@@ -586,7 +586,20 @@ if (noLift.length > 0) {
 /* ================= 14. неразмеченная площадь этажа ================= */
 
 const rectArea = (b: Bounds) => (b.x1 - b.x0) * (b.z1 - b.z0);
-const footprintArea = rectArea(building.footprint);
+/**
+ * Толщина наружной стены, метры. Доля неразмеченного считается от площади
+ * внутри стен: от габарита целиком она всегда завышена на периметральную
+ * полосу, которую разметить в принципе нечем, и порог «30 %» тогда
+ * недостижим снизу.
+ */
+const OUTER_WALL = 0.5;
+const inner = {
+  x0: building.footprint.x0 + OUTER_WALL,
+  x1: building.footprint.x1 - OUTER_WALL,
+  z0: building.footprint.z0 + OUTER_WALL,
+  z1: building.footprint.z1 - OUTER_WALL,
+};
+const footprintArea = rectArea(inner);
 const unmarkedShare = new Map<number, number>();
 
 for (const floor of known) {
@@ -610,6 +623,8 @@ for (const floor of known) {
 /* ================= 15. площадь с чертежа против габарита ================= */
 
 const AREA_DRIFT = 0.15;
+/** Расхождения площади, которые данные объясняют словами: они ждут обмера. */
+const awaitingSurvey: string[] = [];
 
 for (const floor of floors) {
   for (const room of floor.rooms) {
@@ -617,7 +632,17 @@ for (const floor of floors) {
     const gross = rectArea(room.bounds);
     const drift = Math.abs(room.area - gross) / room.area;
     if (drift <= AREA_DRIFT) continue;
-    if (room.description || room.mezzanine) continue; // расхождение объяснено в данных
+    // Пустой `mezzanine: {}` данных не несёт и глушить проверку не должен;
+    // объяснение в `description` — это отложенный вопрос, а не ответ на него,
+    // поэтому такие расхождения выносятся отдельным списком ниже.
+    if (room.mezzanine?.area !== undefined) continue;
+    if (room.description) {
+      awaitingSurvey.push(
+        `${label(room)}: по чертежу ${room.area} м², по границам ${gross.toFixed(1)} м² ` +
+          `(${(drift * 100).toFixed(0)} %) — ${room.description}`,
+      );
+      continue;
+    }
     warn(
       label(room),
       `площадь по чертежу ${room.area} м² расходится с расчётной по границам ` +
@@ -627,6 +652,14 @@ for (const floor of floors) {
   }
 }
 
+if (awaitingSurvey.length > 0) {
+  warn(
+    'площади ждут обмера',
+    `${awaitingSurvey.length} помещений расходятся с чертежом и объяснены словами:\n      ` +
+      awaitingSurvey.join('\n      '),
+  );
+}
+
 /* ================= 16. названия ================= */
 
 const allRooms = floors.flatMap((f) => f.rooms);
@@ -634,7 +667,8 @@ const unconfirmed = allRooms.filter((r) => !r.nameConfirmed).length;
 if (unconfirmed > 0) {
   warn(
     'названия помещений',
-    `${unconfirmed} из ${allRooms.length} не подтверждены школой — отправьте data/rooms.csv на сверку`,
+    `${unconfirmed} из ${allRooms.length} не сняты с чертежа — отправьте data/rooms.csv на сверку. ` +
+      'Ни одно название пока не подтверждено школой: значения nameSource: "school" в данных нет',
   );
 }
 const assumed = allRooms.filter((r) => r.nameSource === 'assumed');
@@ -653,10 +687,19 @@ for (const room of allRooms) {
 }
 for (const [name, ids] of byName) {
   if (ids.length < 2) continue;
+  // Одинаковое название — не дефект, если помещения различает номер:
+  // он показывается рядом с названием и в подписи на плане, и в поиске,
+  // и в карточке. Школа сама называет три помещения «Базерум Illustration»,
+  // и вычищать это из данных значило бы расходиться с дверными табличками.
+  const withoutNumber = ids.filter((id) => {
+    const room = allRooms.find((item) => item.id === id);
+    return !room?.planNumber;
+  });
+  if (withoutNumber.length < 2) continue;
   warn(
     `название «${name}»`,
-    `носят ${ids.length} помещений (${ids.join(', ')}) — в поиске они неразличимы, ` +
-      'добавьте в название блок или сторону, как на чертеже',
+    `носят ${withoutNumber.length} помещений без номера по плану (${withoutNumber.join(', ')}) — ` +
+      'различить их нечем, добавьте в название блок или сторону, как на чертеже',
   );
 }
 
