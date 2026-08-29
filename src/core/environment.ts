@@ -132,13 +132,19 @@ export function createEnvironment(
       // Программы материалов собраны с учётом теней. Без пересборки снятая
       // тень не исчезает, а вмерзает: материалы продолжают читать последнюю
       // теневую карту, и на здании остаётся тень того ракурса, на котором
-      // включился аварийный режим.
+      // включился аварийный режим. Пересобираются только те материалы,
+      // которые тень и читают: аварийный режим включается на устройстве,
+      // которое уже не держит кадр, и пересборка сотни программ там сама
+      // выглядит как поломка.
       scene.traverse((object) => {
-        const holder = object as { material?: Material | Material[] };
-        if (!holder.material) return;
-        const list = Array.isArray(holder.material) ? holder.material : [holder.material];
+        const mesh = object as { material?: Material | Material[]; receiveShadow?: boolean };
+        if (!mesh.material || mesh.receiveShadow !== true) return;
+        const list = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
         for (const material of list) material.needsUpdate = true;
       });
+      // Карта 1024² держит около четырёх мегабайт видеопамяти и без света
+      // никому не нужна.
+      if (!enabled) sun.shadow.dispose();
       if (enabled) requestShadowUpdate();
     },
     dispose(): void {

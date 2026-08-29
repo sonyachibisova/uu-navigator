@@ -45,6 +45,13 @@ const SELECT_LIFT = 0.45;
 const SELECT_RAISE = 1.2;
 /** Непрозрачность приглушённого этажа. */
 const DIMMED = 0.25;
+/**
+ * Доля раскрытия, с которой имеет смысл готовить подписи этажа. Ноль был
+ * плохим порогом: подписи всех этажей строились в тот самый кадр, когда
+ * раскрытие только тронулось с места, — сотня холстов и два атласа
+ * посреди подлёта камеры.
+ */
+const LABELS_FROM = 0.35;
 /** Белый для подсветки: константа модуля, а не аллокация на каждое помещение. */
 const WHITE = new Color(0xffffff);
 
@@ -273,6 +280,9 @@ export function createFloors(
     immediate = false,
     openness = 0,
   ): void {
+    // За один вызов готовится не больше одного этажа: растеризация атласа
+    // стоит десятки миллисекунд, и два подряд — это заметный подвис.
+    let builtNow = false;
     for (const layer of layers) {
       if (!layer.layoutKnown) continue;
       let target: number;
@@ -291,10 +301,14 @@ export function createFloors(
         // это срез, а не режим «изолировать этаж» (инвариант 7 правил проекта):
         // здание по-прежнему читается снизу, нижние этажи остаются.
         target = 0;
-      } else {
-        // Ниже среза этажи остаются приглушёнными: они не мешают взгляду
-        // сверху, а здание без них перестаёт читаться как здание.
+      } else if (layer.level === active - 1) {
+        // Приглушается ровно один этаж под выбранным: он даёт зданию глубину
+        // и не мешает взгляду сверху. Все приглушённые этажи разом — это
+        // столько же прозрачных планов друг под другом, сколько этажей
+        // в здании, и каждый рисуется поверх уже нарисованного.
         target = DIMMED;
+      } else {
+        target = 0;
       }
 
       // Подписи этажа стоят один draw call на этаж, поэтому включаются везде,
@@ -302,7 +316,10 @@ export function createFloors(
       // «здание целиком» — вместе с раскрытием, как и сами интерьеры.
       // На приглушённом этаже подписей нет: там они читались бы как шум.
       const labelTarget = active === null ? openness : layer.level === active ? 1 : 0;
-      if (labelTarget > 0) ensureLabels(layer);
+      if (labelTarget >= LABELS_FROM && !layer.labelsBuilt && !builtNow) {
+        ensureLabels(layer);
+        builtNow = true;
+      }
 
       if (immediate) {
         fade.setChannelImmediate(layer.channel, target);

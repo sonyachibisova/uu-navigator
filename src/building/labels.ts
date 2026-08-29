@@ -107,9 +107,15 @@ interface Entry {
   range: [number, number, number, number];
 }
 
+/** Измерительный контекст: один на модуль, а не по холсту на каждую подпись. */
+let measureContext: CanvasRenderingContext2D | null | undefined;
+
 /** Нарисовать одну подпись на отдельном холсте. Размер холста — по тексту. */
 function drawTile(title: string, subtitle: string): HTMLCanvasElement | undefined {
-  const measure = document.createElement('canvas').getContext('2d');
+  if (measureContext === undefined) {
+    measureContext = document.createElement('canvas').getContext('2d');
+  }
+  const measure = measureContext;
   let titleWidth = 0;
   let subtitleWidth = 0;
   if (measure) {

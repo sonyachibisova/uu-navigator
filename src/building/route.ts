@@ -81,18 +81,17 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
   // буферы только при разрушении геометрии, а маршрут пересобирается
   // на каждую смену этажа и режима.
   const geometry = new BufferGeometry();
-  let capacity = 0;
-  let vertices = new Float32Array(0);
-
-  /** Убедиться, что в буфере хватает места на `count` вершин. */
-  function reserve(count: number): void {
-    if (count <= capacity) return;
-    capacity = Math.max(count, capacity * 2, 256);
-    vertices = new Float32Array(capacity * 3);
-    const attribute = new BufferAttribute(vertices, 3);
-    attribute.setUsage(DynamicDrawUsage);
-    geometry.setAttribute('position', attribute);
-  }
+  /**
+   * Ёмкость буфера с запасом: маршрут через всё здание — это сотня звеньев,
+   * то есть меньше тысячи вершин со стрелками. Буфер выделяется один раз
+   * и больше не подменяется: подмена атрибута оставляла бы прежний буфер
+   * в видеопамяти — рендерер освобождает их только при разрушении геометрии.
+   */
+  const CAPACITY = 4096;
+  const vertices = new Float32Array(CAPACITY * 3);
+  const attribute = new BufferAttribute(vertices, 3);
+  attribute.setUsage(DynamicDrawUsage);
+  geometry.setAttribute('position', attribute);
 
   const mesh = new Mesh(geometry, material);
   mesh.name = 'route.ribbon';
@@ -170,10 +169,10 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
       mesh.visible = false;
       return;
     }
-    const count = positions.length / 3;
-    reserve(count);
-    vertices.set(positions);
-    const attribute = geometry.getAttribute('position') as BufferAttribute;
+    // Длиннее буфера маршрут быть не может: лента обрезается, а не растёт
+    // за пределы выделенного — иначе пришлось бы подменять буфер в кадре.
+    const count = Math.min(positions.length / 3, CAPACITY);
+    vertices.set(positions.slice(0, count * 3));
     attribute.needsUpdate = true;
     // Габарит не считается: меш не отсекается по пирамиде видимости, и
     // проход по всем вершинам ради никем не читаемой сферы был бы лишним.

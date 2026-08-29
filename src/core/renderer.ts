@@ -74,6 +74,16 @@ export function createRenderer(container: HTMLElement, camera: PerspectiveCamera
   let slowFor = 0;
   /** Лучшая частота кадра, которую экран показал: оценка его потолка. */
   let bestFps = 0;
+  /**
+   * Сколько кадров пропустить перед тем, как судить о скорости. Первый кадр
+   * цикла отдаёт синтетическое время (`1/60`), а следующие несколько заняты
+   * загрузкой текстур и сборкой программ: по ним нельзя судить ни о потолке
+   * экрана, ни о провале. Без пропуска потолок навсегда оказывался равен
+   * шестидесяти, и порог всегда был ровно 45 — то есть телефон
+   * в энергосбережении по-прежнему уходил в аварийный режим.
+   */
+  const WARM_UP_FRAMES = 30;
+  let warmedUp = 0;
 
   function resize(): void {
     const width = container.clientWidth || window.innerWidth;
@@ -93,6 +103,10 @@ export function createRenderer(container: HTMLElement, camera: PerspectiveCamera
     resize,
     sampleFrame(dt: number): boolean {
       if (degraded || dt <= 0) return false;
+      if (warmedUp < WARM_UP_FRAMES) {
+        warmedUp += 1;
+        return false;
+      }
       const fps = 1 / dt;
       if (fps > bestFps) bestFps = fps;
       // Порог — минимум из бюджета и доли от достижимого на этом экране.

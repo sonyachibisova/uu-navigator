@@ -8,7 +8,14 @@
  * Все материалы здесь — общие инстансы. Фейдящиеся меши получают клоны
  * через `FadeRegistry` (инвариант 3), общий инстанс никогда не мутируется.
  */
-import { CanvasTexture, Color, MeshStandardMaterial, RepeatWrapping, SRGBColorSpace } from 'three';
+import {
+  CanvasTexture,
+  Color,
+  MeshLambertMaterial,
+  MeshStandardMaterial,
+  RepeatWrapping,
+  SRGBColorSpace,
+} from 'three';
 import type { Material, Texture } from 'three';
 import type { RoomPurpose, SurfaceKey } from '@building/source';
 
@@ -96,10 +103,16 @@ export function createPalette(): Palette {
   brickTexture ??= makeBrickTexture();
   panelTexture ??= makePanelTexture();
 
-  const surfaces: Record<SurfaceKey, MeshStandardMaterial> = {
+  // Матовые интерьерные поверхности — `MeshLambertMaterial`: у них нет ни
+  // карты, ни металличности, ни отражений, и физически корректное освещение
+  // считать для них не за что. На мобильной видеокарте оно стоит примерно
+  // вдвое дороже ламбертова при неотличимой картинке, а интерьеры занимают
+  // почти весь экран в режиме этажа. `MeshStandardMaterial` остаётся там,
+  // где виден его смысл: кирпич и панель с картой, стекло и металл.
+  const surfaces: Record<SurfaceKey, Material> = {
     brick: new MeshStandardMaterial({ map: brickTexture, roughness: 0.95 }),
     panel: new MeshStandardMaterial({ map: panelTexture, roughness: 0.85 }),
-    plaster: new MeshStandardMaterial({ color: 0xeceae4, roughness: 0.8 }),
+    plaster: new MeshLambertMaterial({ color: 0xeceae4 }),
     glassTinted: new MeshStandardMaterial({ color: 0x2c3e50, roughness: 0.18, metalness: 0.6 }),
     glassDark: new MeshStandardMaterial({ color: 0x0e1216, roughness: 0.25, metalness: 0.5 }),
     glassClear: new MeshStandardMaterial({
@@ -109,18 +122,18 @@ export function createPalette(): Palette {
       roughness: 0.1,
       metalness: 0.3,
     }),
-    accent: new MeshStandardMaterial({ color: 0x5c2430, roughness: 0.7 }),
-    trim: new MeshStandardMaterial({ color: 0x2a2d31, roughness: 0.7 }),
-    slab: new MeshStandardMaterial({ color: 0xb8b6b0, roughness: 0.9 }),
-    partition: new MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.9 }),
-    door: new MeshStandardMaterial({ color: 0xb0703a, roughness: 0.7 }),
-    corridor: new MeshStandardMaterial({ color: 0xeae6dc, roughness: 0.95 }),
+    accent: new MeshLambertMaterial({ color: 0x5c2430 }),
+    trim: new MeshLambertMaterial({ color: 0x2a2d31 }),
+    slab: new MeshLambertMaterial({ color: 0xb8b6b0 }),
+    partition: new MeshLambertMaterial({ color: 0xe8e6e0 }),
+    door: new MeshLambertMaterial({ color: 0xb0703a }),
+    corridor: new MeshLambertMaterial({ color: 0xeae6dc }),
     lift: new MeshStandardMaterial({ color: 0xe6c05c, roughness: 0.5, metalness: 0.3 }),
-    stair: new MeshStandardMaterial({ color: 0xcfc6ae, roughness: 0.85 }),
+    stair: new MeshLambertMaterial({ color: 0xcfc6ae }),
   };
   for (const [key, material] of Object.entries(surfaces)) material.name = `surface.${key}`;
 
-  const plate = new MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 });
+  const plate = new MeshLambertMaterial({ color: 0xffffff });
   plate.name = 'surface.plate';
 
   const colorCache = new Map<RoomPurpose, Color>();

@@ -163,7 +163,6 @@ export class FadeRegistry {
   private apply(unit: FadeUnit, t: number): void {
     if (unit.applied === t) return;
     unit.applied = t;
-    this.dirty = true;
 
     const opaque = t >= 1 - EPS;
     const gone = t <= EPS;
@@ -193,9 +192,18 @@ export class FadeRegistry {
       material.opacity = opaque ? record.baseOpacity : t * record.baseOpacity;
     }
 
+    // Теневая карта зависит только от того, что рисуется в неё, — то есть
+    // от видимости меша и от того, отбрасывает ли он тень. Прозрачность
+    // на неё не влияет: меш в переходе тень и так не отбрасывает.
+    // Пометка «изменилось» на каждое изменение `opacity` заставляла
+    // пересчитывать карту в каждом кадре вращения раскрытого здания —
+    // ровно в том сценарии, на который написан бюджет FPS.
+    const wasVisible = unit.object.visible;
+    const wasCasting = unit.object.castShadow;
     unit.object.visible = !gone;
-    // Тень от полупрозрачного меша выглядит как тень от сплошного — на время
-    // перехода её снимаем, как это делал прототип.
     unit.object.castShadow = unit.castShadow && opaque;
+    if (unit.object.visible !== wasVisible || unit.object.castShadow !== wasCasting) {
+      this.dirty = true;
+    }
   }
 }
