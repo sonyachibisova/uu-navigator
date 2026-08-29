@@ -36,6 +36,12 @@ export interface RouteStep {
   text: string;
   /** Этаж, на котором выполняется шаг. */
   level: number;
+  /**
+   * Где этот шаг начинается. По этой точке камера подводится к шагу,
+   * когда человек листает указания на ходу: читать «поверните налево»,
+   * не видя, где именно, — то же, что не читать вовсе.
+   */
+  at: RoutePoint;
 }
 
 export interface Route {
@@ -232,13 +238,18 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
   const first = nodes[0];
   if (first) {
     steps.push({
-      text: first.kind === 'room' ? `Выйдите из «${first.ownerName}»` : `Встаньте у «${first.ownerName}»`,
+      text:
+        first.kind === 'room'
+          ? `Выйдите из «${first.ownerName}»`
+          : `Встаньте у «${first.ownerName}»`,
       level: first.level,
+      at: { x: first.x, z: first.z },
     });
   }
 
   let run = 0;
   let runLevel = first?.level ?? 0;
+  let runAt: RoutePoint = { x: first?.x ?? 0, z: first?.z ?? 0 };
   let pendingTurn: 'left' | 'right' | 'straight' = 'straight';
   let mainName = '';
 
@@ -252,7 +263,7 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
       pendingTurn === 'straight'
         ? `Идите${where} — ${distance}`
         : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
-    steps.push({ text, level: runLevel });
+    steps.push({ text, level: runLevel, at: runAt });
     run = 0;
     pendingTurn = 'straight';
     mainName = '';
@@ -271,7 +282,7 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
       pendingTurn === 'straight'
         ? `Идите${where} — ${distance}`
         : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
-    steps.push({ text, level: runLevel });
+    steps.push({ text, level: runLevel, at: runAt });
     run = 0;
     pendingTurn = 'straight';
     mainName = '';
@@ -290,7 +301,11 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
       // человек понимает, что его ждёт, ещё до того, как дочитает название.
       const lift = node.verticalKind === 'lift';
       const where = lift ? `на лифте «${node.ownerName}»` : `по «${node.ownerName}»`;
-      steps.push({ text: `${verb} ${where} на ${next.level} этаж`, level: node.level });
+      steps.push({
+        text: `${verb} ${where} на ${next.level} этаж`,
+        level: node.level,
+        at: { x: node.x, z: node.z },
+      });
       continue;
     }
 
@@ -310,6 +325,7 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
     if (next.kind === 'corridor' && next.ownerName.startsWith('Главный')) {
       mainName = next.ownerName;
     }
+    if (run === 0) runAt = { x: node.x, z: node.z };
     run += Math.hypot(next.x - node.x, next.z - node.z);
     runLevel = node.level;
   }
@@ -327,7 +343,11 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
         if (turn !== 'straight') side = `, дверь ${TURN_WORD[turn] === 'налево' ? 'слева' : 'справа'}`;
       }
     }
-    steps.push({ text: `Вы на месте: ${last.ownerName}${side}`, level: last.level });
+    steps.push({
+      text: `Вы на месте: ${last.ownerName}${side}`,
+      level: last.level,
+      at: { x: last.x, z: last.z },
+    });
   }
   return steps;
 }

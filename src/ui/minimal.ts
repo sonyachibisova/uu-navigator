@@ -14,7 +14,7 @@
  * пустую серую плиту: их кнопка неактивна и подписана состоянием.
  */
 import type { Store, SceneState } from '@core/state';
-import type { Route } from '@routing/path';
+import type { Route, RouteStep } from '@routing/path';
 import type { BuildingHandle } from '@building/building';
 import { VERTICAL_CSS, purposeCss } from '@building/materials';
 import type { RoomPurpose } from '@building/source';
@@ -127,8 +127,18 @@ const STYLE = `
 #ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
   background: rgba(0,0,0,.08); color: #333; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 #ui-card .route .mode button.on { background: #143a8a; color: #fff; }
-#ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 13px;
+#ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 14px;
   line-height: 1.5; max-height: 148px; overflow-y: auto; }
+/* Ходовая строка: один текущий шаг и стрелки. Полный список — по кнопке,
+   на ходу он не нужен и съедает половину экрана. */
+#ui-card .step { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+#ui-card .step button { flex: 0 0 44px; height: 44px; border: 0; border-radius: 10px;
+  background: rgba(0,0,0,.08); color: #222; font: 600 18px/1 system-ui, sans-serif; cursor: pointer; }
+#ui-card .step button:disabled { opacity: .4; cursor: default; }
+#ui-card .step .text { flex: 1; min-width: 0; font-size: 15px; line-height: 1.35; }
+#ui-card .step .of { display: block; color: #6b6b6b; font-size: 12px; }
+#ui-card .route .all { margin-top: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 9px;
+  background: none; color: #143a8a; font: 600 13px system-ui, sans-serif; cursor: pointer; }
 
 /* Колонна этажей живёт в полосе между подсказкой и карточкой: заданы и top,
    и bottom, поэтому она не наезжает ни на ту, ни на другую даже на коротком экране. */
@@ -217,6 +227,11 @@ export interface UiActions {
   clearRoute: () => void;
   /** Переключить режим «без лестниц». */
   setStepFree: (value: boolean) => void;
+  /**
+   * Показать шаг маршрута: подвести к нему камеру. Человек листает указания
+   * на ходу, и каждое должно показывать то место, о котором говорит.
+   */
+  showStep: (step: RouteStep) => void;
 }
 
 /**
@@ -608,8 +623,60 @@ export function createUi(
   stepFreeButton.addEventListener('click', () => actions.setStepFree(!store.state.stepFree));
   routeMode.appendChild(stepFreeButton);
 
+  // Ходовая строка: человек идёт и смотрит один шаг, а не список из шести.
+  const stepRow = document.createElement('div');
+  stepRow.className = 'step';
+  const stepBack = document.createElement('button');
+  stepBack.type = 'button';
+  stepBack.textContent = '‹';
+  stepBack.setAttribute('aria-label', 'Предыдущий шаг');
+  const stepText = document.createElement('div');
+  stepText.className = 'text';
+  const stepCounter = document.createElement('span');
+  stepCounter.className = 'of';
+  const stepLabel = document.createElement('span');
+  stepText.append(stepLabel, stepCounter);
+  const stepNext = document.createElement('button');
+  stepNext.type = 'button';
+  stepNext.textContent = '›';
+  stepNext.setAttribute('aria-label', 'Следующий шаг');
+  stepRow.append(stepBack, stepText, stepNext);
+
+  const allStepsButton = document.createElement('button');
+  allStepsButton.type = 'button';
+  allStepsButton.className = 'all';
+  allStepsButton.textContent = 'Все шаги';
+
   const routeSteps = document.createElement('ol');
-  routeBlock.append(routeHead, routeMode, routeSteps);
+  routeSteps.hidden = true;
+  routeBlock.append(routeHead, routeMode, stepRow, allStepsButton, routeSteps);
+
+  /** Какой шаг маршрута показан сейчас. */
+  let stepIndex = 0;
+
+  function showStep(index: number): void {
+    if (!shownRoute) return;
+    const steps = shownRoute.steps;
+    stepIndex = Math.min(Math.max(index, 0), steps.length - 1);
+    const step = steps[stepIndex];
+    if (!step) return;
+    stepLabel.textContent = step.text;
+    stepCounter.textContent = `Шаг ${stepIndex + 1} из ${steps.length}`;
+    stepBack.disabled = stepIndex === 0;
+    stepNext.disabled = stepIndex === steps.length - 1;
+    for (const [index2, item] of [...routeSteps.children].entries()) {
+      item.classList.toggle('on', index2 === stepIndex);
+    }
+    actions.showStep(step);
+  }
+
+  stepBack.addEventListener('click', () => showStep(stepIndex - 1));
+  stepNext.addEventListener('click', () => showStep(stepIndex + 1));
+  allStepsButton.addEventListener('click', () => {
+    routeSteps.hidden = !routeSteps.hidden;
+    allStepsButton.textContent = routeSteps.hidden ? 'Все шаги' : 'Свернуть';
+    measureCard();
+  });
 
   routeFromButton.addEventListener('click', () => {
     const id = store.state.selectedRoomId;
@@ -831,12 +898,17 @@ export function createUi(
         routeHead.textContent += ' (без лестниц пути нет — показан обычный)';
       }
       routeSteps.replaceChildren();
-      for (const step of shownRoute.steps) {
+      shownRoute.steps.forEach((step, index) => {
         const item = document.createElement('li');
         item.textContent = step.text;
+        item.addEventListener('click', () => showStep(index));
         routeSteps.appendChild(item);
-      }
+      });
+      stepRow.hidden = false;
+      allStepsButton.hidden = false;
       routeBlock.hidden = false;
+      showStep(stepIndex);
+      measureCard();
       return;
     }
 
@@ -932,6 +1004,9 @@ export function createUi(
       revealButton.hidden = store.state.mode !== 'whole' || opened;
     },
     showRoute(route: Route | undefined, unreachable = false): void {
+      // Шаг сбрасывается только у нового маршрута: тот же маршрут после
+      // смены этажа не должен отматывать человека к началу пути.
+      if (route !== shownRoute) stepIndex = 0;
       shownRoute = route;
       routeUnreachable = unreachable;
       renderRoute();

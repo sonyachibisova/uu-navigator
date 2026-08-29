@@ -33,6 +33,13 @@ import { createUi } from '@ui/minimal';
  */
 const ROOM_WINDOW = 16;
 
+/**
+ * Полуразмер окна вокруг текущего шага маршрута, метры. Меньше комнатного:
+ * шаг — это поворот или отрезок коридора, и человеку нужно видеть его,
+ * а не весь этаж.
+ */
+const STEP_WINDOW = 11;
+
 /** Текст для человека, у которого не запустилась 3D-графика. */
 const NO_WEBGL_TEXT =
   'Ваш браузер не показывает 3D-графику. ' +
@@ -178,17 +185,24 @@ function main(): void {
    * Пересчитать маршрут. Считается он в одном месте — здесь, — а показывают
    * его двое: сцена рисует ленту, интерфейс печатает шаги.
    */
-  function updateRoute(state: SceneState): void {
+  /**
+   * Пересчитать и показать маршрут. `recompute` выключается, когда изменился
+   * только этаж или режим: маршрут тот же, и пересборка подменяла бы объект,
+   * а вместе с ним сбрасывала бы шаг, который человек листает на ходу.
+   */
+  function updateRoute(state: SceneState, recompute = true): void {
     const from = state.routeFromId;
     const to = state.routeToId;
     // Если человек попросил маршрут без лестниц, а его нет, показывается
     // обычный: молча отдать «пути нет» там, где путь есть, — обман.
     // О подмене говорит карточка.
-    shownRoute = undefined;
-    if (from && to && from !== to) {
-      shownRoute =
-        buildRoute(routeGraph, from, to, { stepFree: state.stepFree }) ??
-        (state.stepFree ? buildRoute(routeGraph, from, to) : undefined);
+    if (recompute) {
+      shownRoute = undefined;
+      if (from && to && from !== to) {
+        shownRoute =
+          buildRoute(routeGraph, from, to, { stepFree: state.stepFree }) ??
+          (state.stepFree ? buildRoute(routeGraph, from, to) : undefined);
+      }
     }
     routeView.show(shownRoute, state.mode === 'floor' ? state.activeFloor : null);
     const asked = Boolean(from && to && from !== to);
@@ -240,15 +254,12 @@ function main(): void {
         return;
       }
     }
-    if (
+    const endsChanged =
       next.routeFromId !== prev.routeFromId ||
       next.routeToId !== prev.routeToId ||
-      next.stepFree !== prev.stepFree ||
-      next.activeFloor !== prev.activeFloor ||
-      next.mode !== prev.mode
-    ) {
-      updateRoute(next);
-    }
+      next.stepFree !== prev.stepFree;
+    const viewChanged = next.activeFloor !== prev.activeFloor || next.mode !== prev.mode;
+    if (endsChanged || viewChanged) updateRoute(next, endsChanged);
     // Кнопка «корпус целиком» возвращает и состояние, и ракурс: она снимает
     // выбранный этаж, помещение и подсветку разом, и это её единственный признак.
     // Признак опирается только на срез по этажу: снятие выбранного помещения
@@ -278,6 +289,15 @@ function main(): void {
     // а камера обязана отъехать — иначе здание останется раскрытым.
     home(): void {
       cameraHandle.home();
+    },
+    showStep(step): void {
+      // Камера идёт за шагом: окно небольшое — человек читает «поверните
+      // налево» и видит именно тот угол, а не весь этаж.
+      focusPoint.set(step.at.x, elevations.get(step.level) ?? 0, step.at.z);
+      cameraHandle.frameArea(focusPoint, STEP_WINDOW, STEP_WINDOW);
+      if (store.state.activeFloor !== step.level) {
+        store.set({ mode: 'floor', activeFloor: step.level });
+      }
     },
     setStepFree(value: boolean): void {
       store.set({ stepFree: value });
