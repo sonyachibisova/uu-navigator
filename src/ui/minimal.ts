@@ -16,6 +16,7 @@
 import type { Store, SceneState } from '@core/state';
 import type { Route, RouteStep } from '@routing/path';
 import type { BuildingHandle } from '@building/building';
+import { setLabelEdge } from '@building/labels';
 import { VERTICAL_CSS, purposeCss } from '@building/materials';
 import type { RoomPurpose } from '@building/source';
 
@@ -859,6 +860,21 @@ export function createUi(
   };
   window.addEventListener('keydown', onKeyDown);
 
+  /**
+   * Сообщить сцене, какую долю ширины кадра занимает колонна кнопок справа.
+   * Подписи помещений под ней гасятся: кнопки непрозрачны, и номера уезжали
+   * под них наполовину. Ширину меряем, а не задаём числом: она разная
+   * в портрете и в ландшафте и зависит от безопасных зон.
+   */
+  function reportInterfaceEdge(): void {
+    const width = window.innerWidth || 1;
+    const box = floorsPanel.getBoundingClientRect();
+    const strip = box.width > 0 ? (width - box.left) / width : 0;
+    setLabelEdge(Math.min(Math.max(strip, 0), 0.4));
+  }
+  reportInterfaceEdge();
+  window.addEventListener('resize', reportInterfaceEdge);
+
   /* ---------- отрисовка состояния ---------- */
 
   // Стор шлёт изменение и на наведение указателя. Карточку трогаем, только
@@ -1014,6 +1030,7 @@ export function createUi(
     dispose(): void {
       unsubscribe();
       window.clearTimeout(noteTimer);
+      window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('pointerdown', onScenePointer, true);
       window.removeEventListener('keydown', onKeyDown);
       container.remove();

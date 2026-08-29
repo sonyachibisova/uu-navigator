@@ -82,6 +82,22 @@ const NUMBER_IN = [0.014, 0.02] as const;
  */
 const FULL_IN = [0.028, 0.036] as const;
 
+/**
+ * Полоса интерфейса у правого края экрана, доля ширины кадра. Подписи под
+ * ней гасятся: колонна кнопок этажей непрозрачна, и номера помещений
+ * уезжали под неё наполовину — читалось это как сор, а не как план.
+ *
+ * Значение живёт в одном объекте на весь модуль и передаётся в шейдер
+ * как ссылка: `FadeRegistry` клонирует материалы, и общий объект — это
+ * единственный способ, которым один слайдер достаёт до всех клонов.
+ */
+const edgeUniform = { value: 1 };
+
+/** Сообщить движку, какую долю ширины кадра занимает интерфейс справа. */
+export function setLabelEdge(fraction: number): void {
+  edgeUniform.value = Math.min(Math.max(1 - fraction * 2, 0), 1);
+}
+
 interface Entry {
   canvas: HTMLCanvasElement;
   /** Высота подписи в метрах. */
@@ -178,6 +194,7 @@ function entriesOf(spec: LabelSpec): Entry[] {
  */
 class LabelMaterial extends MeshBasicMaterial {
   override onBeforeCompile(shader: WebGLProgramParametersWithUniforms): void {
+    shader.uniforms['uEdge'] = edgeUniform;
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -185,6 +202,7 @@ class LabelMaterial extends MeshBasicMaterial {
 attribute vec2 aSize;
 attribute vec4 aUvRect;
 attribute vec4 aRange;
+uniform float uEdge;
 varying vec2 vAtlasUv;
 varying float vLabelAlpha;`,
       )
@@ -199,7 +217,13 @@ mvPosition = modelViewMatrix * mvPosition;
 float screenFraction = 0.5 * aSize.y * projectionMatrix[1][1] / max( -mvPosition.z, 1e-4 );
 float appear = smoothstep( aRange.x, aRange.y, screenFraction );
 float vanish = aRange.z > 0.0 ? 1.0 - smoothstep( aRange.z, aRange.w, screenFraction ) : 1.0;
-vLabelAlpha = appear * vanish;
+// Полоса интерфейса справа: подпись под кнопками этажей не показывается.
+// Проверяется центр экземпляра, а не угол четырёхугольника: иначе подпись
+// гасла бы неравномерно, краем.
+vec4 clipCenter = projectionMatrix * mvPosition;
+float ndcX = clipCenter.x / max( clipCenter.w, 1e-4 );
+float edge = 1.0 - smoothstep( uEdge - 0.08, uEdge, ndcX );
+vLabelAlpha = appear * vanish * edge;
 // Углы прибавляются уже в пространстве камеры: четырёхугольник всегда
 // параллелен экрану, а его размер остаётся размером в метрах. Погашенная
 // подпись схлопывается в точку — она не доходит до растеризации вовсе.
