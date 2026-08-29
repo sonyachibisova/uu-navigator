@@ -373,6 +373,7 @@ function main(): void {
     if (building.update(dt, cameraHandle.camera.position, cameraHandle.overviewDistance())) {
       environment.requestShadowUpdate();
     }
+    routeView.update(dt);
     // Раскрытие идёт от близости камеры и меняется в кадре, а не в сторе:
     // интерфейс узнаёт о нём отсюда, и только когда признак действительно
     // изменился — иначе это была бы работа с DOM на каждом кадре.

@@ -44,9 +44,18 @@ const ARROW_HALF_WIDTH = 0.62;
 const RENDER_ORDER = 2;
 /** Цвет ленты. Тёплый и насыщенный: в интерьере таких нет, спутать не с чем. */
 const COLOR = 0xe2483d;
+/**
+ * Длина волны и скорость бегущей подсветки: метры и метры в секунду.
+ * Стрелки говорят, куда идти, стоя на месте; движение говорит то же самое
+ * боковым зрением, и человеку не приходится вглядываться в ленту.
+ */
+const WAVE_LENGTH = 6;
+const WAVE_SPEED = 3.5;
 
 export interface RouteHandle {
   group: Group;
+  /** Шаг анимации: по ленте бежит волна в сторону движения. */
+  update: (dt: number) => void;
   /**
    * Показать маршрут. `activeLevel` — этаж, срез по которому включён сейчас;
    * `null` означает «здание целиком», и тогда видны все части маршрута.
@@ -76,6 +85,29 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
     side: DoubleSide,
   });
   material.depthWrite = false;
+  // Материал ленты никем не клонируется — она не в `FadeRegistry`, — поэтому
+  // здесь достаточно обычного `onBeforeCompile` с собственной униформой.
+  const time = { value: 0 };
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms['uTime'] = time;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float aDistance;\nvarying float vDistance;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDistance = aDistance;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nuniform float uTime;\nvarying float vDistance;',
+      )
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+// Бегущая волна вдоль пути: яркость, а не прозрачность, — прозрачная
+// лента на светлом полу теряется, а более яркая полоса видна всегда.
+float wave = 0.5 + 0.5 * sin( ( vDistance - uTime * ${WAVE_SPEED.toFixed(1)} ) * ${(6.2831853 / WAVE_LENGTH).toFixed(4)} );
+gl_FragColor.rgb *= 0.82 + 0.28 * wave;`,
+      );
+  };
+  material.customProgramCacheKey = () => 'route-ribbon-wave';
   // Один буфер на всё время жизни: новый `BufferAttribute` на каждую
   // пересборку оставлял бы прежний VBO в видеопамяти — рендерер удаляет
   // буферы только при разрушении геометрии, а маршрут пересобирается
@@ -92,6 +124,11 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
   const attribute = new BufferAttribute(vertices, 3);
   attribute.setUsage(DynamicDrawUsage);
   geometry.setAttribute('position', attribute);
+  /** Пройденный путь до вершины, метры: по нему бежит волна. */
+  const distances = new Float32Array(CAPACITY);
+  const distanceAttribute = new BufferAttribute(distances, 1);
+  distanceAttribute.setUsage(DynamicDrawUsage);
+  geometry.setAttribute('aDistance', distanceAttribute);
 
   const mesh = new Mesh(geometry, material);
   mesh.name = 'route.ribbon';
@@ -111,6 +148,7 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
     // на ширине 0.7 м и углах коридоров это меньше сантиметра расхождения,
     // а честное построение стыка стоило бы вдвое больше кода.
     const positions: number[] = [];
+    const along: number[] = [];
     for (const leg of legs) {
       const y = elevationOf(leg.level) + LIFT;
       // Стрелки расставляются по пройденному пути, а не по звеньям: иначе
@@ -138,6 +176,9 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
         const ez = to.z + nz;
         positions.push(ax, y, az, bx, y, bz, cx, y, cz);
         positions.push(ax, y, az, cx, y, cz, ex, y, ez);
+        const startAt = travelled;
+        const endAt = travelled + length;
+        along.push(startAt, startAt, endAt, startAt, endAt, endAt);
 
         const ux = dx / length;
         const uz = dz / length;
@@ -159,6 +200,8 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
             arrowY,
             pz - uz * (ARROW_LENGTH / 2) - ux * ARROW_HALF_WIDTH,
           );
+          // Стрелка светится вместе с тем местом ленты, где стоит.
+          along.push(nextArrow, nextArrow, nextArrow);
           nextArrow += ARROW_STEP;
         }
         travelled += length;
@@ -173,7 +216,9 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
     // за пределы выделенного — иначе пришлось бы подменять буфер в кадре.
     const count = Math.min(positions.length / 3, CAPACITY);
     vertices.set(positions.slice(0, count * 3));
+    distances.set(along.slice(0, count));
     attribute.needsUpdate = true;
+    distanceAttribute.needsUpdate = true;
     // Габарит не считается: меш не отсекается по пирамиде видимости, и
     // проход по всем вершинам ради никем не читаемой сферы был бы лишним.
     geometry.setDrawRange(0, count);
@@ -182,6 +227,11 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
 
   return {
     group,
+    update(dt: number): void {
+      // Время не растёт бесконечно: волна периодична, и на длинном сеансе
+      // большое число потеряло бы точность прямо в шейдере.
+      if (mesh.visible) time.value = (time.value + dt) % (WAVE_LENGTH / WAVE_SPEED);
+    },
     show,
     dispose(): void {
       mesh.removeFromParent();
