@@ -293,9 +293,31 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
         });
         link(roomNodeIndex, doorNodeIndex, distance(room.plate.center, door));
         const corridorNodeIndex = attach(door);
-        if (corridorNodeIndex !== undefined) {
-          const target = nodes[corridorNodeIndex];
-          if (target) link(doorNodeIndex, corridorNodeIndex, distance(door, target));
+        const target = corridorNodeIndex === undefined ? undefined : nodes[corridorNodeIndex];
+        if (corridorNodeIndex !== undefined && target) {
+          // Путь от двери до коридора идёт углом, а не по диагонали: человек
+          // выходит из двери поперёк неё и дальше движется вдоль коридора.
+          // На данных, где коридор описан не везде, дверь отстоит от него
+          // до девяти метров, и диагональ прошла бы наискось через соседние
+          // помещения. Угол хотя бы повторяет то, как ходят на самом деле.
+          const alongZ = door.side === 'north' || door.side === 'south';
+          const elbow = alongZ ? { x: door.x, z: target.z } : { x: target.x, z: door.z };
+          const gapToElbow = distance(door, elbow);
+          const gapToLine = distance(elbow, target);
+          if (gapToElbow > 0.05 && gapToLine > 0.05) {
+            const elbowIndex = addNode({
+              kind: 'corridor',
+              level: floor.level,
+              x: elbow.x,
+              z: elbow.z,
+              ownerId: target.ownerId,
+              ownerName: target.ownerName,
+            });
+            link(doorNodeIndex, elbowIndex, gapToElbow);
+            link(elbowIndex, corridorNodeIndex, gapToLine);
+          } else {
+            link(doorNodeIndex, corridorNodeIndex, distance(door, target));
+          }
         }
       }
     }
@@ -392,6 +414,6 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
  * их нет вовсе, и тогда помещение остаётся в графе изолированным узлом —
  * это честнее, чем выдумывать вход.
  */
-function doorsOf(room: RoomView): { id: string; x: number; z: number }[] {
+function doorsOf(room: RoomView): RoomView['doors'] {
   return room.doors ?? [];
 }
