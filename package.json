@@ -12,17 +12,21 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "check-data": "tsx scripts/check-data.ts",
-    "stats": "tsx scripts/stats.ts"
+    "stats": "tsx scripts/stats.ts",
+    "stickers": "tsx scripts/make-stickers.ts"
   },
   "dependencies": {
+    "qrcode": "^1.5.4",
     "three": "^0.169.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",
+    "@types/qrcode": "^1.5.6",
     "@types/three": "^0.169.0",
     "eslint": "^9.13.0",
     "prettier": "^3.3.3",
+    "qrcode": "^1.5.4",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.12.2",

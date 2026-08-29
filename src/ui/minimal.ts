@@ -279,16 +279,21 @@ export function createUi(
       'Планировки этажей пока нет. Здание можно осмотреть снаружи: крути и приближай.',
     );
   } else {
-    hintText.append('Нажми ');
+    // Первым делом человек спрашивает «куда мне», а не «как повернуть
+    // здание». Поэтому подсказка начинается с поиска, а осмотр корпуса
+    // предлагается вторым — тому, кто пришёл посмотреть, а не найти.
+    hintText.append('Куда вам? Наберите ');
+    hintText.append(strong('номер'));
+    hintText.append(' или ');
+    hintText.append(strong('название'));
+    hintText.append(' — 4.09, мастерская, лестница. Или нажмите ');
     hintText.append(strong('«Заглянуть внутрь»'));
-    hintText.append(' — подлечу к зданию, и оно раскроется само. Кнопки ');
+    hintText.append(' и осмотрите корпус: кнопки ');
     known.forEach((floor, index) => {
       if (index > 0) hintText.append(index === known.length - 1 ? ' и ' : ', ');
       hintText.append(strong(String(floor.level)));
     });
-    hintText.append(' справа покажут этаж изнутри, ');
-    hintText.append(strong('⌂'));
-    hintText.append(' вернёт здание целиком.');
+    hintText.append(' справа покажут этаж изнутри.');
   }
   hint.appendChild(hintText);
 
@@ -429,7 +434,7 @@ export function createUi(
   const searchInput = document.createElement('input');
   searchInput.type = 'search';
   searchInput.autocomplete = 'off';
-  searchInput.placeholder = 'Номер или название';
+  searchInput.placeholder = 'Куда вам? Номер или название';
   searchInput.setAttribute('aria-label', 'Поиск помещения по номеру или названию');
   const searchClear = document.createElement('button');
   searchClear.type = 'button';
