@@ -87,6 +87,7 @@ npm run dev
 | `npm run lint` | ESLint |
 | `npm run check-data` | валидация данных здания |
 | `npm run stats` | размеры бандла против бюджета |
+| `npm test` | проверки маршрутов на выдуманном здании |
 | `npm run stickers` | лист A4 с кодами для лестниц и лифтов |
 
 ## Структура
