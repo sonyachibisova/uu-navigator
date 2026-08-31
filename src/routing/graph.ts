@@ -31,10 +31,22 @@ import type { Bounds, FloorView, RoomView, VerticalView } from '@building/source
 /** Во сколько раз этаж по лестнице «длиннее» своей высоты. */
 const STAIR_FACTOR = 2.6;
 /**
- * То же для лифта. Больше, чем у лестницы, намеренно: в стоимость входит
- * ожидание кабины. Человеку, которому лифт не нужен, лестница ближе.
+ * То же для лифта — сама поездка. Кабина едет быстрее шага, но двери
+ * открываются и закрываются, поэтому множитель не меньше единицы.
  */
-const LIFT_FACTOR = 3.4;
+const LIFT_FACTOR = 1.6;
+/**
+ * Ожидание кабины, метры пути. Это слагаемое, а не множитель на высоту:
+ * кабину ждут одинаково долго и на один этаж, и на три. Тридцать метров —
+ * это около двадцати семи секунд шагом, то есть половина полного цикла лифта
+ * в пятиэтажном корпусе.
+ *
+ * Раньше ожидание пытались изобразить множителем 3.4 против 2.6 у лестницы:
+ * разница выходила 2.9 м, то есть две с половиной секунды, и приложение
+ * отправляло к лифту двоих из трёх — включая тех, кому надо на один этаж.
+ * В час пик это очередь, которую собирает навигатор.
+ */
+const LIFT_WAIT = 30;
 /** Зазор, в пределах которого прямоугольники коридоров считаются стыкующимися. */
 const JOIN_GAP = 0.6;
 
@@ -376,7 +388,11 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
 
   // Межэтажные рёбра: одна и та же связь на соседних своих этажах.
   const heights = new Map<number, number>();
-  for (const floor of floors) heights.set(floor.level, floor.height);
+  const elevations = new Map<number, number>();
+  for (const floor of floors) {
+    heights.set(floor.level, floor.height);
+    elevations.set(floor.level, floor.elevation);
+  }
   for (const [id, view] of verticalSeen) {
     // Сшиваются только те этажи, на которых связь действительно встретилась.
     // В данных лестница объявлена «на этажи 1–5», но у этажей без планировки
@@ -390,22 +406,31 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       const from = verticalIndex.get(`${id}@${lower}`);
       const to = verticalIndex.get(`${id}@${upper}`);
       if (from === undefined || to === undefined) continue;
-      // Высоты этажей разные: подъём считается суммой пройденных, а не
-      // высотой верхнего, помноженной на разницу уровней.
-      let rise = 0;
-      for (let level = lower + 1; level <= upper; level += 1) {
-        rise += heights.get(level) ?? heights.get(lower) ?? 3.6;
+      // Подъём — это разница отметок пола, а не сумма высот этажей выше
+      // нижнего: с 4-го на 5-й поднимаются на высоту 4-го, а не 5-го. Пока
+      // все этажи одной высоты, разницы не видно; как только первый этаж
+      // станет выше остальных, стоимость поехала бы.
+      const bottom = elevations.get(lower);
+      const top = elevations.get(upper);
+      let rise = bottom !== undefined && top !== undefined ? top - bottom : 0;
+      if (rise <= 0) {
+        rise = 0;
+        for (let level = lower; level < upper; level += 1) {
+          rise += heights.get(level) ?? 3.6;
+        }
       }
       // Множитель этажности здесь не нужен: `rise` уже просуммировал высоты
       // всех пройденных этажей. Пока размеченные этажи соседние, ошибка
       // не видна, но связь, пропускающая этаж, удвоила бы стоимость.
-      const factor = view.kind === 'lift' ? LIFT_FACTOR : STAIR_FACTOR;
+      const lift = view.kind === 'lift';
+      const factor = lift ? LIFT_FACTOR : STAIR_FACTOR;
+      const cost = rise * factor + (lift ? LIFT_WAIT : 0);
       // Лифт считается доступным по своей природе, лестница — только если
       // это подтверждено данными. `unknown` в данных трактуется как «нет»:
       // ошибиться в эту сторону значит предложить обход, ошибиться
       // в другую — привести человека к ступеням, которые он не пройдёт.
       const stairs = view.kind !== 'lift' && !view.accessible;
-      link(from, to, rise * factor, stairs);
+      link(from, to, cost, stairs);
     }
   }
 

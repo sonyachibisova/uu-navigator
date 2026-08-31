@@ -27,5 +27,8 @@ jobs:
       - name: check-data
         run: npm run check-data
 
+      - name: test
+        run: npm test
+
       - name: build
         run: npm run build

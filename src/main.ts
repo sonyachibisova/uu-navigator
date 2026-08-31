@@ -350,6 +350,14 @@ function main(): void {
   const link = routeFromUrl();
   const startId = link.from && routeGraph.anchorNode(link.from) !== undefined ? link.from : null;
   const endId = link.to && routeGraph.anchorNode(link.to) !== undefined ? link.to : null;
+  if (startId && !endId) {
+    // Наклейка на лестнице ведёт сюда: цель человек ещё не выбрал, и без
+    // ответа экран выглядит так же, как без ссылки. Скажем, что точка
+    // отправления принята, и назовём место — это единственное подтверждение,
+    // что код сработал.
+    const place = building.verticalById(startId) ?? building.roomById(startId);
+    if (place) ui.announceStart(place.name);
+  }
   if (startId || endId) {
     store.set({
       routeFromId: startId,

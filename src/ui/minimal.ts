@@ -203,6 +203,13 @@ export interface UiHandle {
    * камеры, а не от режима, и режим о нём ничего не знает.
    */
   setOpened: (opened: boolean) => void;
+  /**
+   * Сказать человеку, что навигатор уже знает, где он стоит. Так открывается
+   * ссылка с наклейки: `?from=<код>` без цели. Раньше в этом случае на экране
+   * не менялось ничего — человек снимал код с лестницы и видел обычное здание,
+   * то есть наклейка выглядела сломанной.
+   */
+  announceStart: (placeName: string) => void;
   dispose: () => void;
 }
 
@@ -320,6 +327,20 @@ export function createUi(
   hintClose.setAttribute('aria-label', 'Скрыть подсказку');
   hint.appendChild(hintClose);
   container.appendChild(hint);
+
+  /** Подсказка про наклейку: держится до первого касания, как и обычная. */
+  function announceStart(placeName: string): void {
+    if (hintGone) return;
+    hintText.replaceChildren();
+    hintText.append('Вы у «');
+    hintText.append(strong(placeName));
+    hintText.append('». Куда вам? Наберите ');
+    hintText.append(strong('номер'));
+    hintText.append(' или ');
+    hintText.append(strong('название'));
+    hintText.append(' — маршрут отсюда построится сам.');
+    hint.hidden = false;
+  }
 
   let hintGone = false;
   function dismissHint(): void {
@@ -1057,6 +1078,7 @@ export function createUi(
   const unsubscribe = store.subscribe((next) => render(next));
 
   return {
+    announceStart,
     setOpened(value: boolean): void {
       if (opened === value) return;
       opened = value;

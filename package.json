@@ -13,12 +13,11 @@
     "format": "prettier --write .",
     "check-data": "tsx scripts/check-data.ts",
     "stats": "tsx scripts/stats.ts",
-    "test": "tsx scripts/test-routing.ts",
+    "test": "tsx scripts/test-routing.ts && tsx scripts/check-routes.ts",
     "stickers": "tsx scripts/make-stickers.ts",
     "rooms-csv": "tsx scripts/make-rooms-csv.ts"
   },
   "dependencies": {
-    "qrcode": "^1.5.4",
     "three": "^0.169.0",
     "zod": "^3.23.8"
   },

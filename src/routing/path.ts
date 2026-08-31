@@ -252,19 +252,36 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
   let runAt: RoutePoint = { x: first?.x ?? 0, z: first?.z ?? 0 };
   let pendingTurn: 'left' | 'right' | 'straight' = 'straight';
   let mainName = '';
+  /**
+   * Сколько метров участка и правда пройдено по главному коридору. Раньше имя
+   * приписывалось всему участку, если в главный коридор попадал хоть один узел:
+   * человеку говорили «идите по главному коридору», пока он шёл через чужое
+   * помещение, и он решал, что сбился.
+   */
+  let mainRun = 0;
 
-  const flush = (): void => {
-    // Копим дальше: короткий крюк у двери или у лифта — часть следующего
-    // прямого участка, а не отдельная строка «поверните направо — 5 м».
-    if (run < MIN_STEP_LENGTH) return;
+  /** Сбросить накопленное, ничего не сказав: крюк короче шага и без поворота. */
+  const drop = (): void => {
+    run = 0;
+    mainRun = 0;
+    mainName = '';
+  };
+
+  /**
+   * Вывести накопленный участок. Имя коридора называется только тогда, когда
+   * по нему пройдена большая часть участка, — иначе человек ищет табличку,
+   * стоя в другом месте.
+   */
+  const emit = (): void => {
     const distance = `${Math.round(run)} м`;
-    const where = mainName ? ` по «${mainName}»` : '';
+    const where = mainName && mainRun * 2 >= run ? ` по «${mainName}»` : '';
     const text =
       pendingTurn === 'straight'
         ? `Идите${where} — ${distance}`
         : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
     steps.push({ text, level: runLevel, at: runAt });
     run = 0;
+    mainRun = 0;
     pendingTurn = 'straight';
     mainName = '';
   };
@@ -273,19 +290,12 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
   const flushRemainder = (): void => {
     if (run < 1) {
       run = 0;
+      mainRun = 0;
       pendingTurn = 'straight';
+      mainName = '';
       return;
     }
-    const distance = `${Math.round(run)} м`;
-    const where = mainName ? ` по «${mainName}»` : '';
-    const text =
-      pendingTurn === 'straight'
-        ? `Идите${where} — ${distance}`
-        : `Поверните ${TURN_WORD[pendingTurn]} и идите${where} — ${distance}`;
-    steps.push({ text, level: runLevel, at: runAt });
-    run = 0;
-    pendingTurn = 'straight';
-    mainName = '';
+    emit();
   };
 
   for (let i = 0; i < nodes.length - 1; i += 1) {
@@ -313,10 +323,17 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
     if (previous && previous.level === node.level) {
       const turn = turnOf(previous, node, next);
       if (turn !== 'straight') {
-        flush();
-        // Поворот, скопившийся до слияния коротких отрезков, важнее
-        // последующих: человек делает его первым.
-        if (pendingTurn === 'straight') pendingTurn = turn;
+        // Каждый поворот должен быть сказан. Раньше при слиянии коротких
+        // отрезков сохранялся только первый, а следующие молча пропадали:
+        // человек поворачивал один раз и уходил по прямой мимо своей двери.
+        // Поэтому участок выводится, если он длиннее порога ИЛИ если на нём
+        // уже висит несказанный поворот.
+        if (run >= MIN_STEP_LENGTH || pendingTurn !== 'straight') flushRemainder();
+        // Короткий крюк без поворота не называется отдельной строкой, но и
+        // не приписывается следующему участку: иначе «поверните направо и
+        // идите — 13 м» там, где после поворота на самом деле девять.
+        else drop();
+        pendingTurn = turn;
       }
     }
 
@@ -325,8 +342,15 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
     if (next.kind === 'corridor' && next.ownerName.startsWith('Главный')) {
       mainName = next.ownerName;
     }
+    // Последний отрезок — от двери к центру целевого помещения. Его не рисует
+    // лента и о нём говорит фраза «Вы на месте», поэтому в расстояние шага он
+    // не входит: иначе шаг обещает пройти лишнюю длину помещения.
+    const intoTarget = next.kind === 'room' && i + 1 === nodes.length - 1;
+    if (intoTarget) continue;
     if (run === 0) runAt = { x: node.x, z: node.z };
-    run += Math.hypot(next.x - node.x, next.z - node.z);
+    const span = Math.hypot(next.x - node.x, next.z - node.z);
+    run += span;
+    if (next.kind === 'corridor' && next.ownerName.startsWith('Главный')) mainRun += span;
     runLevel = node.level;
   }
   flushRemainder();
@@ -391,7 +415,11 @@ export function buildRoute(
     const lastRoom = node.kind === 'room' && i === nodes.length - 1;
     if (!lastRoom) leg.points.push({ x: node.x, z: node.z });
     const next = nodes[i + 1];
-    if (next && next.level === node.level) {
+    // Длина считается по тем же точкам, что уходят в ленту. Отрезок «дверь →
+    // центр целевого помещения» лента не рисует, и в метрах его тоже нет:
+    // иначе слова обещают на длину помещения больше, чем нарисовано.
+    const intoTarget = next?.kind === 'room' && i + 1 === nodes.length - 1;
+    if (next && next.level === node.level && !intoTarget) {
       meters += Math.hypot(next.x - node.x, next.z - node.z);
     }
   }
