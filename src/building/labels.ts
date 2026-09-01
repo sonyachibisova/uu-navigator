@@ -54,6 +54,8 @@ const SUBTITLE_COLOR = '#33383c';
  * сопоставляет план с тем, где стоит.
  */
 const ANCHOR_COLOR = '#1d4f3c';
+/** Подложка подписи: светлая и почти непрозрачная, читается на любой плите. */
+const PLATE_COLOR = 'rgba(246,244,239,0.88)';
 const FONT = 'Univers, Arial, Helvetica, sans-serif';
 
 /** Ширина атласа: дальше плитки переносятся на новую полку. */
@@ -155,6 +157,20 @@ function drawTile(title: string, subtitle: string, anchor = false): HTMLCanvasEl
 
   const ctx = canvas.getContext('2d');
   if (ctx) {
+    // Светлая подложка под текстом. Без неё контраст подписи держится только
+    // на светлых плитах: на синей лаборатории и на терракоте мастерской
+    // тёмный текст давал 4.2:1 при норме 4.5:1. Подложка делает контраст
+    // одинаковым на любом цвете плиты и не зависит от палитры заказчика.
+    const radius = Math.min(10, canvas.height / 3);
+    ctx.fillStyle = PLATE_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.arcTo(canvas.width, 0, canvas.width, canvas.height, radius);
+    ctx.arcTo(canvas.width, canvas.height, 0, canvas.height, radius);
+    ctx.arcTo(0, canvas.height, 0, 0, radius);
+    ctx.arcTo(0, 0, canvas.width, 0, radius);
+    ctx.closePath();
+    ctx.fill();
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     let y = 5;
@@ -165,7 +181,8 @@ function drawTile(title: string, subtitle: string, anchor = false): HTMLCanvasEl
       y += TITLE_SIZE + 4;
     }
     if (subtitle) {
-      ctx.font = `${anchor ? 700 : 600} ${SUBTITLE_SIZE}px ${FONT}`;
+      // Начертаний у Univers два, 400 и 700: просить 600 значит получить 700.
+      ctx.font = `${anchor ? 700 : 400} ${SUBTITLE_SIZE}px ${FONT}`;
       ctx.fillStyle = anchor ? ANCHOR_COLOR : SUBTITLE_COLOR;
       ctx.fillText(subtitle, canvas.width / 2, y);
     }

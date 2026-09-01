@@ -76,6 +76,12 @@ export interface GraphEdge {
    * «без лестниц» их пропускает.
    */
   stairs?: boolean;
+  /**
+   * Доступность этой связи школа не подтверждала. Маршрут «без лестниц»
+   * такие рёбра проходит — иначе он не построится нигде, — но обязан
+   * сказать об этом человеку, а не выдавать за гарантию.
+   */
+  unconfirmed?: boolean;
 }
 
 export interface RouteGraph {
@@ -186,7 +192,7 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
   /** Связь и этажи, на которых она встретилась: по ним и сшиваются этажи. */
   const verticalSeen = new Map<
     string,
-    { kind: VerticalView['kind']; accessible: boolean; levels: number[] }
+    { kind: VerticalView['kind']; accessible: boolean; confirmed: boolean; levels: number[] }
   >();
 
   function addNode(node: GraphNode): number {
@@ -195,10 +201,12 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     return nodes.length - 1;
   }
 
-  function link(from: number, to: number, cost: number, stairs = false): void {
+  function link(from: number, to: number, cost: number, stairs = false, unconfirmed = false): void {
     if (from === to) return;
     const value = Math.max(cost, 0.01);
-    const edge = stairs ? { cost: value, stairs: true } : { cost: value };
+    const edge: Omit<GraphEdge, 'to'> = { cost: value };
+    if (stairs) edge.stairs = true;
+    if (unconfirmed) edge.unconfirmed = true;
     edges[from]?.push({ ...edge, to });
     edges[to]?.push({ ...edge, to: from });
   }
@@ -374,10 +382,12 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
         // Связь доступна, только если доступна на каждом своём этаже:
         // пандус на одном ярусе не отменяет ступеней на другом.
         seen.accessible = seen.accessible && linkView.accessible === true;
+        seen.confirmed = seen.confirmed && linkView.accessibilityConfirmed === true;
       } else
         verticalSeen.set(linkView.id, {
           kind: linkView.kind,
           accessible: linkView.accessible === true,
+          confirmed: linkView.accessibilityConfirmed === true,
           levels: [floor.level],
         });
       const corridorNodeIndex = attach(point);
@@ -442,11 +452,11 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
       const factor = lift ? LIFT_FACTOR : STAIR_FACTOR;
       const cost = rise * factor + (lift ? LIFT_WAIT : 0);
       // Лифт считается доступным по своей природе, лестница — только если
-      // это подтверждено данными. `unknown` в данных трактуется как «нет»:
-      // ошибиться в эту сторону значит предложить обход, ошибиться
-      // в другую — привести человека к ступеням, которые он не пройдёт.
-      const stairs = view.kind !== 'lift' && !view.accessible;
-      link(from, to, cost, stairs);
+      // это и записано, и подтверждено школой. Неподтверждённое `accessible`
+      // — чужое обещание: ошибиться в эту сторону значит привести человека
+      // к ступеням, которые он не пройдёт.
+      const stairs = view.kind !== 'lift' && !(view.accessible && view.confirmed);
+      link(from, to, cost, stairs, !view.confirmed);
     }
   }
 

@@ -91,9 +91,9 @@ const STYLE = `
 #ui-root.start #ui-search .tip { display: block; }
 #ui-search .me { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
   color: var(--ink-dim); font-size: 14px; }
-#ui-search .me b { color: var(--accent); font-weight: 700; }
+#ui-search .me b { color: var(--ink); font-weight: 700; }
 #ui-root.start #ui-search .me.on { display: block; }
-#ui-search .chips button { height: 40px; padding: 0 14px; border: 0; border-radius: 20px;
+#ui-search .chips button { height: 44px; padding: 0 14px; border: 0; border-radius: 22px;
   background: var(--glass-soft); color: var(--ink); font: 400 14px Univers, sans-serif; cursor: pointer; }
 #ui-search .field { pointer-events: auto; display: flex; align-items: center; gap: 8px;
   box-sizing: border-box; height: 52px; padding: 0 4px 0 14px; border-radius: 14px;
@@ -105,7 +105,7 @@ const STYLE = `
   font: 400 16px Univers, system-ui, sans-serif; }
 /* Свой крестик уже есть — нативный рядом с ним читается как второй. */
 #ui-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-#ui-search input::placeholder { color: rgba(241,242,239,.55); }
+#ui-search input::placeholder { color: rgba(241,242,239,.66); }
 #ui-search input:focus { outline: none; }
 #ui-search .clear { width: 44px; height: 44px; border: 0; border-radius: 10px; background: none;
   color: var(--ink-dim); font: 400 18px/1 Univers, sans-serif; cursor: pointer; }
@@ -119,8 +119,8 @@ const STYLE = `
 #ui-search .count { padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.09);
   color: var(--ink-dim); font-size: 13px; }
 #ui-search .list button:last-child { border-bottom: 0; }
-#ui-search .list button b { margin-right: 6px; color: var(--accent); }
-#ui-search .list button .where { display: block; color: var(--ink-dim); font-size: 12px; }
+#ui-search .list button b { margin-right: 6px; color: var(--ink); }
+#ui-search .list button .where { display: block; color: var(--ink-dim); font-size: 13px; }
 #ui-search .empty { padding: 12px 14px; color: var(--ink-dim); font-size: 13px; }
 
 /* Начальное состояние: лист снизу. Здание при этом остаётся светлым —
@@ -134,8 +134,12 @@ const STYLE = `
 #ui-root.start #ui-search .field { border-color: rgba(255,255,255,.2);
   background: var(--glass-soft); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
 #ui-root.start #ui-search .list { max-height: min(38vh, 280px); }
-/* Колонна этажей стоит над листом, а не на нём. */
-#ui-root.start #ui-floors { bottom: calc(var(--gap-b) + var(--start-h, 320px) + 12px); }
+/* Колонна этажей стоит над листом, а не на нём: полоса начинается у самого
+   верха экрана, а кнопки в этом состоянии компактнее — на коротком телефоне
+   лист с вопросом и колонна вместе занимают почти всю высоту. */
+#ui-root.start #ui-floors { z-index: 6; top: var(--gap-t); bottom: calc(var(--gap-b) + var(--start-h, 320px) + 10px); gap: 6px; }
+#ui-root.start #ui-floors .row { gap: 6px; }
+#ui-root.start #ui-floors button { min-width: 44px; height: 44px; }
 #ui-root.start #ui-legend { display: none; }
 
 #ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 58px); left: var(--gap-l); right: var(--gap-r);
@@ -165,7 +169,7 @@ const STYLE = `
   border-radius: 10px; background: none; color: var(--ink-dim); font: 400 15px/1 Univers, sans-serif;
   cursor: pointer; }
 #ui-card .title { padding-right: 92px; font-size: 15px; }
-#ui-card .title b { margin-right: 6px; font-size: 17px; color: var(--accent); }
+#ui-card .title b { margin-right: 6px; font-size: 17px; color: var(--ink); }
 #ui-card .where { padding-right: 92px; color: var(--ink-dim); font-size: 13px; }
 #ui-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 #ui-card .actions button { height: 44px; padding: 0 16px; border: 0; border-radius: 12px;
@@ -173,6 +177,10 @@ const STYLE = `
 #ui-card .actions button.ghost { background: var(--glass-soft); color: var(--ink); font-weight: 400; }
 #ui-card .route { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 #ui-card .route .head { font-size: 13px; color: var(--ink-dim); }
+/* Предупреждение о неподтверждённой доступности: заметное, но не тревожное. */
+#ui-card .route .warn { margin-top: 8px; padding: 8px 10px; border-radius: 10px;
+  background: rgba(216,255,62,.14); border: 1px solid rgba(216,255,62,.35);
+  color: var(--ink); font-size: 13px; line-height: 1.35; }
 #ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
 #ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
   background: var(--glass-soft); color: var(--ink); font: 400 13px Univers, sans-serif; cursor: pointer; }
@@ -187,7 +195,7 @@ const STYLE = `
   background: var(--glass-soft); color: var(--ink); font: 700 18px/1 Univers, sans-serif; cursor: pointer; }
 #ui-card .step button:disabled { opacity: .4; cursor: default; }
 #ui-card .step .text { flex: 1; min-width: 0; font-size: 15px; line-height: 1.35; }
-#ui-card .step .of { display: block; color: var(--ink-dim); font-size: 12px; }
+#ui-card .step .of { display: block; color: var(--ink-dim); font-size: 13px; }
 #ui-card .route .all { margin-top: 8px; height: 44px; padding: 0 12px; border: 0; border-radius: 12px;
   background: none; color: var(--accent); font: 700 13px Univers, sans-serif; cursor: pointer; }
 
@@ -197,6 +205,7 @@ const STYLE = `
 #ui-card.compact .where,
 #ui-card.compact .actions,
 #ui-card.compact .route .head,
+#ui-card.compact .route .warn,
 #ui-card.compact .route .mode,
 #ui-card.compact .route .all,
 #ui-card.compact .route ol { display: none; }
@@ -216,7 +225,7 @@ const STYLE = `
 #ui-floors button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* Прозрачность на полупрозрачной подложке давала контраст около 2:1 —
    цифры неактивных этажей не читались. Состояние задано цветом. */
-#ui-floors button:disabled, #ui-floors button.off { background: rgba(20,22,25,.66); color: rgba(241,242,239,.5); }
+#ui-floors button:disabled, #ui-floors button.off { background: rgba(20,22,25,.72); color: rgba(241,242,239,.74); }
 #ui-floors .note { max-width: 170px; padding: 7px 9px; border-radius: 10px; border: 1px solid var(--line);
   background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   color: var(--ink); font-size: 13px; line-height: 1.3; text-align: right; }
@@ -235,7 +244,9 @@ const STYLE = `
 #ui-legend .toggle { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
   background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   color: var(--ink); font: 400 13px Univers, sans-serif; cursor: pointer; }
-#ui-legend .list { pointer-events: auto; box-sizing: border-box;
+/* Список обозначений открывается над карточкой, а не поверх неё: иначе
+   он закрывал текущий шаг маршрута и кнопку закрытия. */
+#ui-legend .list { margin-bottom: var(--card-over, 0px); pointer-events: auto; box-sizing: border-box;
   width: min(260px, calc(100vw - var(--gap-l) - var(--gap-r)));
   max-height: min(46vh, 340px); overflow-y: auto; padding: 12px 14px; border-radius: var(--r);
   border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
@@ -257,6 +268,12 @@ const STYLE = `
 }
 
 /* Короткий портретный экран: тач-цели остаются в норме, колонна становится ниже. */
+/* Короткий экран: строка «или покрутите здание» — приятность, а не смысл,
+   и она уступает место кнопкам этажей. */
+@media (orientation: portrait) and (max-height: 740px) {
+  #ui-root.start #ui-search .tip { display: none; }
+}
+
 @media (orientation: portrait) and (max-height: 700px) {
   #ui-floors { bottom: calc(var(--gap-b) + 160px); gap: 8px; }
   #ui-floors .row { gap: 8px; }
@@ -336,7 +353,6 @@ const SYNONYMS: Record<string, string> = {
   кабинет: 'базерум',
   компьютерный: 'класс',
   печать: 'печати',
-  вход: 'галерея',
 };
 
 /** Жирный фрагмент подсказки: текст кладётся через `textContent`, не разметкой. */
@@ -526,9 +542,58 @@ export function createUi(
       }
       if (rank >= 0) ranked.push({ item, rank });
     }
+    // Одна опечатка не должна оставлять человека с пустым списком: на бегу
+    // «библеотека» набирается легко. Второй проход идёт только тогда, когда
+    // точного совпадения нет вовсе, — иначе он размывает нормальную выдачу.
+    if (ranked.length === 0 && needle.length >= 4) {
+      // Опечатку прощаем и в самом слове, и в словарном: «библеотека» должна
+      // находить библиотеку даже там, где помещение названо иначе, а найдено
+      // оно через словарь.
+      const repaired: string[] = [];
+      for (const [word, canonical] of Object.entries(SYNONYMS)) {
+        if (withinOneEdit(word, needle)) repaired.push(canonical);
+      }
+      for (const item of searchItems) {
+        const words = [...item.haystackName.split(' '), ...item.haystackType.split(' ')];
+        const near =
+          words.some((word) => word.length >= 4 && withinOneEdit(word, needle)) ||
+          repaired.some(
+            (term) => item.haystackName.includes(term) || item.haystackType.includes(term),
+          );
+        if (near) ranked.push({ item, rank: 5 });
+      }
+    }
     ranked.sort((a, b) => a.rank - b.rank || a.item.number.localeCompare(b.item.number, 'ru'));
     lastFoundCount = ranked.length;
     return ranked.slice(0, SEARCH_LIMIT).map((entry) => entry.item);
+  }
+
+  /**
+   * Отличаются ли слова не больше чем на одну правку: вставку, удаление
+   * или замену буквы. Полное расстояние Левенштейна здесь не нужно —
+   * достаточно ответа «да или нет», и он считается одним проходом.
+   */
+  function withinOneEdit(word: string, query: string): boolean {
+    if (Math.abs(word.length - query.length) > 1) return false;
+    let i = 0;
+    let j = 0;
+    let mistakes = 0;
+    while (i < word.length && j < query.length) {
+      if (word[i] === query[j]) {
+        i += 1;
+        j += 1;
+        continue;
+      }
+      mistakes += 1;
+      if (mistakes > 1) return false;
+      if (word.length > query.length) i += 1;
+      else if (word.length < query.length) j += 1;
+      else {
+        i += 1;
+        j += 1;
+      }
+    }
+    return mistakes + (word.length - i) + (query.length - j) <= 1;
   }
 
   /** Сколько всего нашлось по последнему запросу: для строки «показаны N из M». */
@@ -841,9 +906,16 @@ export function createUi(
   allStepsButton.className = 'all';
   allStepsButton.textContent = 'Все шаги';
 
+  // Честность режима «без лестниц»: пока школа не подтвердила доступность,
+  // маршрут остаётся предположением, и человек должен знать об этом до того,
+  // как доедет до лифта.
+  const routeWarn = document.createElement('div');
+  routeWarn.className = 'warn';
+  routeWarn.hidden = true;
+
   const routeSteps = document.createElement('ol');
   routeSteps.hidden = true;
-  routeBlock.append(routeHead, routeMode, stepRow, allStepsButton, routeSteps);
+  routeBlock.append(routeHead, routeWarn, routeMode, stepRow, allStepsButton, routeSteps);
 
   /** Какой шаг маршрута показан сейчас. */
   let stepIndex = 0;
@@ -1070,6 +1142,22 @@ export function createUi(
   // Поворот экрана меняет и ширину листа, и его высоту.
   window.addEventListener('resize', measureStart);
 
+  /**
+   * Экранная клавиатура. На iOS она не меняет вёрстку страницы: лист с полем
+   * поиска остаётся прибитым к низу окна и уезжает под клавиатуру вместе
+   * с полем, в которое человек печатает. Поднимаем его на высоту клавиатуры
+   * сами, по видимой области.
+   */
+  const viewport = window.visualViewport;
+  function liftForKeyboard(): void {
+    if (!viewport) return;
+    const hidden = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+    // Мелкие расхождения — это адресная строка, а не клавиатура.
+    search.style.transform = hidden > 80 ? `translateY(${-hidden}px)` : '';
+  }
+  viewport?.addEventListener('resize', liftForKeyboard);
+  viewport?.addEventListener('scroll', liftForKeyboard);
+
   /* ---------- отрисовка состояния ---------- */
 
   // Стор шлёт изменение и на наведение указателя. Карточку трогаем, только
@@ -1136,6 +1224,16 @@ export function createUi(
       if (state.stepFree && !shownRoute.stepFree) {
         routeHead.textContent += ' (без лестниц пути нет — показан обычный)';
       }
+      // Режим «без лестниц» не должен звучать как гарантия там, где школа
+      // доступность не подтверждала. Молчать здесь — значит обещать чужое.
+      const unconfirmed = shownRoute.unconfirmedLinks;
+      routeWarn.hidden = !(shownRoute.stepFree && unconfirmed.length > 0);
+      if (!routeWarn.hidden) {
+        routeWarn.textContent =
+          unconfirmed.length === 1
+            ? `Доступность «${unconfirmed[0]}» школа пока не подтвердила`
+            : `Доступность связей на пути школа пока не подтвердила: ${unconfirmed.join(', ')}`;
+      }
       routeSteps.replaceChildren();
       shownRoute.steps.forEach((step, index) => {
         const item = document.createElement('li');
@@ -1161,7 +1259,8 @@ export function createUi(
 
     if (routeUnreachable) {
       // Молчать здесь нельзя: человек уже выбрал обе точки и ждёт ответа.
-      routeHead.textContent = 'Пути не нашлось: у помещения нет двери в данных';
+      routeHead.textContent =
+        'Маршрут сюда пока не строится. Выберите другое место или спросите на входе';
       routeSteps.replaceChildren();
       routeBlock.hidden = false;
       setCompact(false);
@@ -1248,6 +1347,9 @@ export function createUi(
   function measureCard(): void {
     const height = card.hidden ? 0 : card.offsetHeight;
     container.style.setProperty('--card-h', `${Math.max(height, 96)}px`);
+    // Отдельная величина без нижней границы: ею список обозначений
+    // отодвигается от карточки, а когда карточки нет — не отодвигается вовсе.
+    container.style.setProperty('--card-over', `${height > 0 ? height + 8 : 0}px`);
   }
 
   /**
@@ -1285,6 +1387,8 @@ export function createUi(
       window.clearTimeout(shareTimer);
       window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('resize', measureStart);
+      viewport?.removeEventListener('resize', liftForKeyboard);
+      viewport?.removeEventListener('scroll', liftForKeyboard);
       window.removeEventListener('pointerdown', onScenePointer, true);
       window.removeEventListener('keydown', onKeyDown);
       container.remove();

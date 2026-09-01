@@ -181,6 +181,12 @@ export interface VerticalView {
   name: string;
   bounds: Bounds;
   accessible: boolean;
+  /**
+   * Подтвердила ли доступность школа. Без подтверждения `accessible: true`
+   * — это чужое обещание, а не факт: режим «без лестниц» на него опираться
+   * не должен и говорит об этом человеку словами.
+   */
+  accessibilityConfirmed: boolean;
   parts: Part[];
   label: LabelSpec | null;
 }

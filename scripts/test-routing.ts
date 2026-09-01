@@ -56,13 +56,20 @@ function room(id: string, floor: number, x: number, z: number, name: string): Ro
   };
 }
 
-function vertical(id: string, kind: 'stairs' | 'lift', x: number, accessible: boolean): VerticalView {
+function vertical(
+  id: string,
+  kind: 'stairs' | 'lift',
+  x: number,
+  accessible: boolean,
+  accessibilityConfirmed = true,
+): VerticalView {
   return {
     id,
     kind,
     name: kind === 'lift' ? 'Лифт' : 'Лестница',
     bounds: { x0: x - 1.5, x1: x + 1.5, z0: -1.5, z1: 1.5 },
     accessible,
+    accessibilityConfirmed,
     parts: [],
     label: null,
   };
@@ -172,7 +179,14 @@ const fromStair = buildRoute(graph, 'stair', 'f2-south');
 check('маршрут от лестницы строится', fromStair !== undefined);
 check(
   'маршрут от лестницы начинается словами про неё',
-  fromStair?.steps[0]?.text.startsWith('Встаньте у') === true,
+  fromStair?.steps[0]?.text.startsWith('Вы у «') === true,
+);
+
+// Неподтверждённая доступность обязана доезжать до маршрута словами.
+const liftUnconfirmed = buildRoute(graph, 'f1-north', 'f2-south', { stepFree: true });
+check(
+  'маршрут без лестниц называет связи с неподтверждённой доступностью',
+  Array.isArray(liftUnconfirmed?.unconfirmedLinks),
 );
 
 const isolated = findPath(graph, 0, graph.nodes.length - 1);

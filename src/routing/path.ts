@@ -61,6 +61,12 @@ export interface Route {
   minutes: number;
   fromName: string;
   toName: string;
+  /**
+   * Связи на пути, доступность которых школа не подтверждала. Пусто —
+   * значит обещать нечего и говорить не о чем; непусто — интерфейс обязан
+   * сказать словами, что «без лестниц» здесь не гарантия.
+   */
+  unconfirmedLinks: string[];
 }
 
 /** Двоичная куча по стоимости: минимум сверху. */
@@ -257,7 +263,7 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
       text:
         first.kind === 'room'
           ? `Выйдите из «${first.ownerName}»`
-          : `Встаньте у «${first.ownerName}»`,
+          : `Вы у «${first.ownerName}» — отсюда и пойдём`,
       level: first.level,
       at: { x: first.x, z: first.z },
     });
@@ -275,6 +281,10 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
    * помещение, и он решал, что сбился.
    */
   let mainRun = 0;
+  /** Через какое чужое помещение уже сказано вести: чтобы не повторяться. */
+  let throughSaid = '';
+  const startId = first?.ownerId ?? '';
+  const targetId = nodes[nodes.length - 1]?.ownerId ?? '';
 
   /** Сбросить накопленное, ничего не сказав: крюк короче шага и без поворота. */
   const drop = (): void => {
@@ -353,6 +363,26 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
       }
     }
 
+    // Проход насквозь через чужое помещение говорится словами. Молчать
+    // здесь нельзя: человек упирается в дверь чужой мастерской и решает,
+    // что сбился с пути, — а маршрут именно туда его и ведёт.
+    if (
+      next.kind === 'room' &&
+      next.ownerId !== startId &&
+      next.ownerId !== targetId &&
+      next.ownerId !== throughSaid
+    ) {
+      throughSaid = next.ownerId;
+      // Накопленный участок выводится, только если он есть: иначе вместе
+      // с ним потерялся бы несказанный поворот, и слова разошлись бы с лентой.
+      if (run >= 1) flushRemainder();
+      steps.push({
+        text: `Пройдите через «${next.ownerName}»`,
+        level: next.level,
+        at: { x: next.x, z: next.z },
+      });
+    }
+
     // Имя называется только у главного коридора этажа: оно единственное,
     // которое человек может услышать от вахтёра или увидеть на схеме.
     if (next.kind === 'corridor' && next.ownerName.startsWith('Главный')) {
@@ -410,6 +440,20 @@ export function buildRoute(
   const path = findPath(graph, from, to, options, cost);
   if (path.length < 2) return undefined;
 
+  // Какие связи на пути школа не подтверждала. Считается по рёбрам, а не
+  // по узлам: подтверждение — свойство перехода между этажами.
+  const unconfirmedLinks: string[] = [];
+  for (let i = 0; i + 1 < path.length; i += 1) {
+    const here = path[i];
+    const next = path[i + 1];
+    if (here === undefined || next === undefined) continue;
+    const edge = (graph.edges[here] ?? []).find((item) => item.to === next);
+    if (edge?.unconfirmed !== true) continue;
+    const node = graph.nodes[here]?.kind === 'vertical' ? graph.nodes[here] : graph.nodes[next];
+    const name = node?.ownerName;
+    if (name && !unconfirmedLinks.includes(name)) unconfirmedLinks.push(name);
+  }
+
   const raw = path.map((index) => graph.nodes[index]).filter((node): node is GraphNode => !!node);
   if (raw.length < 2) return undefined;
   const nodes = simplify(raw);
@@ -456,5 +500,6 @@ export function buildRoute(
     minutes: Math.max(1, Math.ceil(Math.max(cost.total, meters) / WALK_SPEED / 60)),
     fromName,
     toName,
+    unconfirmedLinks,
   };
 }

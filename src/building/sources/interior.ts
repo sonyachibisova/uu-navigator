@@ -358,6 +358,7 @@ function verticalView(frame: FloorFrame, link: VerticalLink, tag: string): Verti
     name: link.name,
     bounds: link.bounds,
     accessible: link.accessible,
+    accessibilityConfirmed: link.accessibilityConfirmed,
     parts,
     label: {
       name: `${prefix}.label`,

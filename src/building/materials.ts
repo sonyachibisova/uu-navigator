@@ -90,21 +90,20 @@ const PURPOSE_COLOR: Record<RoomPurpose, number> = {
   studio: 0xc98a4b,
   workshop: 0xb5654a,
   lecture: 0x7fa98c,
-  class: 0x7fa98c,
+  class: 0xa9c07f,
   lab: 0x5a7fa8,
-  gallery: 0xd9d2c4,
+  gallery: 0xe0cd9c,
   library: 0x3e8f86,
-  cowork: 0xd9d2c4,
+  cowork: 0xa9bcc0,
   office: 0x8e7ba8,
   admin: 0xb2a465,
-  lobby: 0xe4e0d8,
-  cafe: 0xb5654a,
-  shop: 0x8e7ba8,
+  lobby: 0xe8e4dc,
+  cafe: 0x8f4636,
+  shop: 0x6f5f92,
   wc: 0x6e9aaa,
-  storage: 0xb0b0a8,
-  tech: 0xa3a39b,
-};
-export interface Palette {
+  storage: 0xadaca3,
+  tech: 0xadaca3,
+};export interface Palette {
   surface: (key: SurfaceKey) => Material;
   /** Базовый материал кликабельных плит: цвет приходит per-instance. */
   plate: Material;

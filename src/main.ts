@@ -233,6 +233,12 @@ function main(): void {
   }
 
   const store = createSceneStore();
+  /**
+   * Пришёл ли человек по ссылке с наклейки: тогда точка старта уже известна,
+   * и первый же выбор помещения означает «веди меня туда». Флаг снимается
+   * после первого маршрута — дальше ведёт только кнопка.
+   */
+  let startFromLink = false;
   store.subscribe((next, prev) => {
     building.applyState(next);
     // Выбран этаж — камера кадрирует именно его. Рамка общего вида считается
@@ -241,12 +247,15 @@ function main(): void {
       const floor = building.floors.find((item) => item.level === next.activeFloor);
       if (floor) cameraHandle.frameFloor(floor.elevation + floor.height / 2, floor.height);
     }
-    // Выбранное помещение достраивает незаполненный конец маршрута: человек,
-    // назначивший «отсюда», следующим касанием говорит «сюда», и наоборот.
-    // Явные кнопки при этом остаются: они нужны на первом конце.
+    // Маршрут достраивается сам ровно в одном случае: человек пришёл
+    // по ссылке с наклейки, точка старта известна из адреса, и ему остаётся
+    // сказать только «куда». Во всех остальных случаях ведёт кнопка
+    // «Провести меня»: молча строить маршрут к каждому открытому помещению —
+    // значит вести человека туда, куда он не просил.
     if (next.selectedRoomId && next.selectedRoomId !== prev.selectedRoomId) {
       const id = next.selectedRoomId;
-      if (next.routeFromId && !next.routeToId && next.routeFromId !== id) {
+      if (startFromLink && next.routeFromId && !next.routeToId && next.routeFromId !== id) {
+        startFromLink = false;
         store.set({ routeToId: id });
         return;
       }
@@ -350,6 +359,7 @@ function main(): void {
   const link = routeFromUrl();
   const startId = link.from && routeGraph.anchorNode(link.from) !== undefined ? link.from : null;
   const endId = link.to && routeGraph.anchorNode(link.to) !== undefined ? link.to : null;
+  startFromLink = Boolean(startId && !endId);
   if (startId && !endId) {
     // Наклейка на лестнице ведёт сюда: цель человек ещё не выбрал, и без
     // ответа экран выглядит так же, как без ссылки. Скажем, что точка
