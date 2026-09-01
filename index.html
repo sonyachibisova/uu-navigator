@@ -25,6 +25,23 @@
     <meta name="apple-mobile-web-app-title" content="Корпус 3" />
 
     <style>
+      /* Шрифт брендбука. Локальный, два начертания, лежит в public/fonts. */
+      @font-face {
+        font-family: "Univers";
+        src: url("./fonts/univers-roman.woff2") format("woff2");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+
+      @font-face {
+        font-family: "Univers";
+        src: url("./fonts/univers-bold.woff2") format("woff2");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+
       html,
       body {
         margin: 0;
@@ -72,7 +89,7 @@
         box-sizing: border-box;
         background: #0b0b0c;
         color: #f2efe9;
-        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        font: 15px/1.5 Univers, system-ui, -apple-system, "Segoe UI", sans-serif;
         text-align: center;
       }
 
@@ -88,7 +105,7 @@
         height: 56px;
         border: 2px solid rgba(242, 239, 233, 0.8);
         border-radius: 14px;
-        font: 700 30px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
+        font: 700 30px/1 Univers, system-ui, -apple-system, "Segoe UI", sans-serif;
         color: #fff;
       }
 
@@ -178,7 +195,7 @@
         box-sizing: border-box;
         background: #0b0b0c;
         color: #f2efe9;
-        font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        font: 15px/1.5 Univers, system-ui, -apple-system, "Segoe UI", sans-serif;
         text-align: center;
       }
 

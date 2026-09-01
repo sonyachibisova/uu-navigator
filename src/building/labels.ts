@@ -46,15 +46,15 @@ import type { LabelSpec } from '@building/source';
  */
 const TITLE_SIZE = 42;
 const SUBTITLE_SIZE = 24;
-const TITLE_COLOR = '#143a8a';
-const SUBTITLE_COLOR = '#3c3c3c';
+const TITLE_COLOR = '#14181c';
+const SUBTITLE_COLOR = '#33383c';
 /**
  * Цвет якорей — лестниц и лифтов. Он другой намеренно: это единственные
  * подписи, которым соответствует что-то видимое глазами, и по ним человек
  * сопоставляет план с тем, где стоит.
  */
-const ANCHOR_COLOR = '#12603a';
-const FONT = 'Arial, Helvetica, sans-serif';
+const ANCHOR_COLOR = '#1d4f3c';
+const FONT = 'Univers, Arial, Helvetica, sans-serif';
 
 /** Ширина атласа: дальше плитки переносятся на новую полку. */
 const ATLAS_WIDTH = 1024;
@@ -68,11 +68,11 @@ const RENDER_ORDER = 3;
  * этажа целиком, поэтому берётся заметно больше прежнего. Полная — номер плюс
  * название, размер прежний, как в прототипе; однострочная — всё остальное.
  */
-const NUMBER_HEIGHT = 3.6;
-const FULL_HEIGHT = 1.7;
-const SINGLE_HEIGHT = 1.2;
+const NUMBER_HEIGHT = 2.3;
+const FULL_HEIGHT = 1.45;
+const SINGLE_HEIGHT = 1.05;
 /** Высота подписи якоря: лестницы и лифта. */
-const ANCHOR_HEIGHT = 2.2;
+const ANCHOR_HEIGHT = 1.8;
 
 /**
  * Пороги смены вида, в долях высоты экрана. Порог задан долей экрана, а не
@@ -114,7 +114,7 @@ const edgeUniform = { value: 1 };
  * порога своего появления (`FULL_IN`) и при этом две подписи по вертикали
  * не могли занять экран целиком.
  */
-const MAX_SCREEN_FRACTION = 0.085;
+const MAX_SCREEN_FRACTION = 0.055;
 
 /** Сообщить движку, какую долю ширины кадра занимает интерфейс справа. */
 export function setLabelEdge(fraction: number): void {

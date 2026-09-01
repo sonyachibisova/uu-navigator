@@ -50,7 +50,19 @@ const PURPOSE_LABEL: Record<RoomPurpose, string> = {
  */
 const STYLE = `
 #ui-root { position: absolute; inset: 0; pointer-events: none;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: Univers, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Язык оболочки: тёмное стекло поверх светлой сцены. Сцена не затемняется —
+     панели держатся собственной подложкой, рамкой и тенью. */
+  --glass: rgba(20,22,25,.82);
+  --glass-soft: rgba(255,255,255,.11);
+  --line: rgba(255,255,255,.16);
+  --ink: #f1f2ef;
+  --ink-dim: rgba(241,242,239,.62);
+  --accent: #d8ff3e;
+  --accent-ink: #14160f;
+  --r: 16px;
+  --blur: blur(20px);
+  --shadow: 0 10px 34px rgba(0,0,0,.34);
   --gap-t: max(10px, env(safe-area-inset-top, 0px));
   --gap-r: max(10px, env(safe-area-inset-right, 0px));
   --gap-b: max(10px, env(safe-area-inset-bottom, 0px));
@@ -58,129 +70,190 @@ const STYLE = `
 
 /* Жест принадлежит сцене: перехватывают его только кнопки и раскрытая легенда. */
 #ui-root button, #ui-root input { pointer-events: auto; touch-action: manipulation; }
-/* Кольцо двухцветное: белое на тёмных панелях, синее на светлых — одно
-   и то же обводится и на карточке, и на кнопке этажа. */
+/* Кольцо одно на все панели: они теперь одного тона, и белого хватает. */
 #ui-root button:focus-visible, #ui-root input:focus-visible {
-  outline: 2px solid #143a8a; outline-offset: 2px; box-shadow: 0 0 0 4px rgba(255,255,255,.9); }
+  outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 4px rgba(20,22,25,.55); }
 /* На телефоне нет наведения: отклик на касание — единственное подтверждение,
    что палец попал. */
 #ui-root button:active { filter: brightness(1.25); }
 #ui-root [hidden] { display: none; }
 
-/* Поиск — первое, что видит человек: он приходит с вопросом «где 4.09»,
-   а не разглядывать здание. Поэтому он вверху, над подсказкой. */
+/* Поиск. В начальном состоянии он не строка вверху, а лист снизу с вопросом:
+   человек приходит с вопросом «где 4.09», и первое, что он видит, — вопрос
+   и поле. Как только место выбрано, лист сжимается в строку у верхнего края
+   и отдаёт экран плану. */
 #ui-search { position: absolute; z-index: 5; top: var(--gap-t);
   left: var(--gap-l); right: var(--gap-r); }
+#ui-search .ask { display: none; margin: 2px 2px 14px; color: var(--ink);
+  font: 700 30px/1.05 Univers, system-ui, sans-serif; letter-spacing: -.02em; }
+#ui-search .chips { display: none; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+#ui-search .tip { display: none; margin: 14px 2px 0; color: var(--ink-dim); font-size: 13px; line-height: 1.4; }
+#ui-root.start #ui-search .tip { display: block; }
+#ui-search .me { display: none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line);
+  color: var(--ink-dim); font-size: 14px; }
+#ui-search .me b { color: var(--accent); font-weight: 700; }
+#ui-root.start #ui-search .me.on { display: block; }
+#ui-search .chips button { height: 40px; padding: 0 14px; border: 0; border-radius: 20px;
+  background: var(--glass-soft); color: var(--ink); font: 400 14px Univers, sans-serif; cursor: pointer; }
 #ui-search .field { pointer-events: auto; display: flex; align-items: center; gap: 8px;
-  box-sizing: border-box; height: 48px; padding: 0 4px 0 12px; border-radius: 12px;
-  background: rgba(255,255,255,.95); box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+  box-sizing: border-box; height: 52px; padding: 0 4px 0 14px; border-radius: 14px;
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); box-shadow: var(--shadow); }
 /* Кегль ровно 16: Safari на iPhone увеличивает страницу при фокусе поля
    меньше шестнадцати, и человек остаётся в зуме поверх сцены. */
-#ui-search input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: #111;
-  font: 400 16px system-ui, sans-serif; }
+#ui-search input { flex: 1; min-width: 0; height: 44px; border: 0; background: none; color: var(--ink);
+  font: 400 16px Univers, system-ui, sans-serif; }
 /* Свой крестик уже есть — нативный рядом с ним читается как второй. */
 #ui-search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
-#ui-search input::placeholder { color: #8a8a8a; }
+#ui-search input::placeholder { color: rgba(241,242,239,.55); }
 #ui-search input:focus { outline: none; }
 #ui-search .clear { width: 44px; height: 44px; border: 0; border-radius: 10px; background: none;
-  color: #6b6b6b; font: 400 18px/1 system-ui, sans-serif; cursor: pointer; }
-#ui-search .list { pointer-events: auto; margin-top: 6px; overflow-y: auto; border-radius: 12px;
-  max-height: min(44vh, 320px); background: rgba(255,255,255,.97);
-  box-shadow: 0 6px 22px rgba(0,0,0,.28); }
+  color: var(--ink-dim); font: 400 18px/1 Univers, sans-serif; cursor: pointer; }
+#ui-search .list { pointer-events: auto; margin-top: 8px; overflow-y: auto; border-radius: var(--r);
+  max-height: min(44vh, 320px); border: 1px solid var(--line); background: var(--glass);
+  backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); box-shadow: var(--shadow); }
 #ui-search .list button { display: block; width: 100%; min-height: 48px; box-sizing: border-box;
-  text-align: left; padding: 8px 12px; border: 0; border-bottom: 1px solid rgba(0,0,0,.07);
-  border-radius: 0; background: none; color: #111; font: 400 15px system-ui, sans-serif;
+  text-align: left; padding: 9px 14px; border: 0; border-bottom: 1px solid rgba(255,255,255,.09);
+  border-radius: 0; background: none; color: var(--ink); font: 400 15px Univers, sans-serif;
   cursor: pointer; }
-#ui-search .count { padding: 8px 12px; border-top: 1px solid rgba(0,0,0,.07);
-  color: #6b6b6b; font-size: 13px; }
+#ui-search .count { padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.09);
+  color: var(--ink-dim); font-size: 13px; }
 #ui-search .list button:last-child { border-bottom: 0; }
-#ui-search .list button b { margin-right: 6px; color: #143a8a; }
-#ui-search .list button .where { display: block; color: #6b6b6b; font-size: 12px; }
-#ui-search .empty { padding: 10px 12px; color: #6b6b6b; font-size: 13px; }
+#ui-search .list button b { margin-right: 6px; color: var(--accent); }
+#ui-search .list button .where { display: block; color: var(--ink-dim); font-size: 12px; }
+#ui-search .empty { padding: 12px 14px; color: var(--ink-dim); font-size: 13px; }
 
-#ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 54px); left: var(--gap-l); right: var(--gap-r);
-  box-sizing: border-box; min-height: 44px; padding: 10px 52px 10px 12px; border-radius: 10px;
-  background: rgba(0,0,0,.68); color: #fff; font-size: 14px; line-height: 1.45; }
+/* Начальное состояние: лист снизу. Здание при этом остаётся светлым —
+   затемняется не сцена, а только собственная подложка панели. */
+#ui-root.start #ui-search { top: auto; bottom: var(--gap-b);
+  padding: 18px 16px 18px; border-radius: 22px; border: 1px solid var(--line);
+  background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  box-shadow: var(--shadow); }
+#ui-root.start #ui-search .ask { display: block; }
+#ui-root.start #ui-search .chips { display: flex; }
+#ui-root.start #ui-search .field { border-color: rgba(255,255,255,.2);
+  background: var(--glass-soft); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+#ui-root.start #ui-search .list { max-height: min(38vh, 280px); }
+/* Колонна этажей стоит над листом, а не на нём. */
+#ui-root.start #ui-floors { bottom: calc(var(--gap-b) + var(--start-h, 320px) + 12px); }
+#ui-root.start #ui-legend { display: none; }
+
+#ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 58px); left: var(--gap-l); right: var(--gap-r);
+  box-sizing: border-box; min-height: 44px; padding: 10px 52px 10px 14px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); color: var(--ink); font-size: 14px; line-height: 1.45; }
 #ui-hint .close { position: absolute; top: 0; right: 0; width: 44px; height: 44px;
-  border: 0; border-radius: 10px; background: none; color: #fff; font: 400 20px/1 system-ui, sans-serif;
+  border: 0; border-radius: 10px; background: none; color: var(--ink); font: 400 20px/1 Univers, sans-serif;
   cursor: pointer; }
+/* На первом экране подсказка молчит: её работу делает сам вопрос,
+   а про здание сказано строкой в листе. */
+#ui-root.start #ui-hint { display: none; }
 
-/* Высота ограничена: карточка с шестью шагами маршрута закрывала кнопку
-   «корпус целиком» — единственный способ вернуться одним действием. */
+/* Карточка помещения и маршрут. Пока маршрут идёт, карточка живёт свёрнутой:
+   одна строка текущего шага и стрелки. Всё остальное — по кнопке разворота. */
 #ui-card { position: absolute; z-index: 3; left: var(--gap-l); right: var(--gap-r);
-  bottom: calc(var(--gap-b) + 54px); box-sizing: border-box; padding: 10px 44px 10px 14px;
-  max-height: 46vh; overflow-y: auto; border-radius: 12px;
-  background: rgba(255,255,255,.95); color: #111; font-size: 14px; line-height: 1.4;
-  box-shadow: 0 6px 22px rgba(0,0,0,.32); }
-#ui-card .close { position: absolute; top: 4px; right: 4px; width: 40px; height: 40px; border: 0;
-  border-radius: 10px; background: none; color: #6b6b6b; font: 400 20px/1 system-ui, sans-serif;
+  bottom: calc(var(--gap-b) + 54px); box-sizing: border-box; padding: 12px 16px;
+  max-height: 46vh; overflow-y: auto; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); color: var(--ink); font-size: 14px; line-height: 1.4;
+  box-shadow: var(--shadow); }
+#ui-card .close { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0;
+  border-radius: 10px; background: none; color: var(--ink-dim); font: 400 20px/1 Univers, sans-serif;
   cursor: pointer; }
-#ui-card .title { font-size: 15px; }
-#ui-card .title b { margin-right: 6px; font-size: 18px; color: #143a8a; }
-#ui-card .where { color: #6b6b6b; font-size: 13px; }
-#ui-card .actions { display: flex; gap: 8px; margin-top: 8px; }
-#ui-card .actions button { height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
-  background: #143a8a; color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; }
-#ui-card .actions button.ghost { background: rgba(0,0,0,.08); color: #333; }
-#ui-card .route { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,.1); }
-#ui-card .route .head { font-size: 13px; color: #143a8a; font-weight: 600; }
-#ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-#ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 10px;
-  background: rgba(0,0,0,.08); color: #333; font: 600 12px system-ui, sans-serif; cursor: pointer; }
-#ui-card .route .mode button.on { background: #143a8a; color: #fff; }
-#ui-card .route ol { margin: 6px 0 0; padding-left: 18px; color: #333; font-size: 14px;
+/* Разворот свёрнутой полосы: тап по всей ширине шапки, а не по стрелке. */
+#ui-card .grip { position: absolute; top: 2px; right: 46px; width: 44px; height: 44px; border: 0;
+  border-radius: 10px; background: none; color: var(--ink-dim); font: 400 15px/1 Univers, sans-serif;
+  cursor: pointer; }
+#ui-card .title { padding-right: 92px; font-size: 15px; }
+#ui-card .title b { margin-right: 6px; font-size: 17px; color: var(--accent); }
+#ui-card .where { padding-right: 92px; color: var(--ink-dim); font-size: 13px; }
+#ui-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#ui-card .actions button { height: 44px; padding: 0 16px; border: 0; border-radius: 12px;
+  background: var(--accent); color: var(--accent-ink); font: 700 14px Univers, sans-serif; cursor: pointer; }
+#ui-card .actions button.ghost { background: var(--glass-soft); color: var(--ink); font-weight: 400; }
+#ui-card .route { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+#ui-card .route .head { font-size: 13px; color: var(--ink-dim); }
+#ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+#ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
+  background: var(--glass-soft); color: var(--ink); font: 400 13px Univers, sans-serif; cursor: pointer; }
+#ui-card .route .mode button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+#ui-card .route ol { margin: 8px 0 0; padding-left: 18px; color: var(--ink); font-size: 14px;
   line-height: 1.5; max-height: 148px; overflow-y: auto; }
+#ui-card .route ol li.on { color: var(--accent); }
 /* Ходовая строка: один текущий шаг и стрелки. Полный список — по кнопке,
    на ходу он не нужен и съедает половину экрана. */
-#ui-card .step { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
-#ui-card .step button { flex: 0 0 44px; height: 44px; border: 0; border-radius: 10px;
-  background: rgba(0,0,0,.08); color: #222; font: 600 18px/1 system-ui, sans-serif; cursor: pointer; }
+#ui-card .step { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+#ui-card .step button { flex: 0 0 44px; height: 44px; border: 0; border-radius: 12px;
+  background: var(--glass-soft); color: var(--ink); font: 700 18px/1 Univers, sans-serif; cursor: pointer; }
 #ui-card .step button:disabled { opacity: .4; cursor: default; }
 #ui-card .step .text { flex: 1; min-width: 0; font-size: 15px; line-height: 1.35; }
-#ui-card .step .of { display: block; color: #6b6b6b; font-size: 12px; }
-#ui-card .route .all { margin-top: 6px; height: 36px; padding: 0 12px; border: 0; border-radius: 9px;
-  background: none; color: #143a8a; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+#ui-card .step .of { display: block; color: var(--ink-dim); font-size: 12px; }
+#ui-card .route .all { margin-top: 8px; height: 44px; padding: 0 12px; border: 0; border-radius: 12px;
+  background: none; color: var(--accent); font: 700 13px Univers, sans-serif; cursor: pointer; }
+
+/* Свёрнутый вид на время ходьбы: остаются название цели и текущий шаг.
+   Карточка занимает нижнюю пятую часть экрана, план виден. */
+#ui-card.compact { padding-bottom: 10px; max-height: 22vh; }
+#ui-card.compact .where,
+#ui-card.compact .actions,
+#ui-card.compact .route .head,
+#ui-card.compact .route .mode,
+#ui-card.compact .route .all,
+#ui-card.compact .route ol { display: none; }
+#ui-card.compact .route { margin-top: 8px; padding-top: 8px; }
+#ui-card.compact .title { font-size: 14px; color: var(--ink-dim); }
+#ui-card.compact .title b { font-size: 15px; }
 
 /* Колонна этажей живёт в полосе между подсказкой и карточкой: заданы и top,
    и bottom, поэтому она не наезжает ни на ту, ни на другую даже на коротком экране. */
 #ui-floors { position: absolute; z-index: 2; right: var(--gap-r);
   top: calc(var(--gap-t) + 96px); bottom: calc(var(--gap-b) + var(--card-h, 150px) + 16px);
-  display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 10px; }
-#ui-floors .row { display: flex; flex-direction: column; gap: 10px; }
-#ui-floors button { min-width: 46px; height: 46px; padding: 0 8px; border: 0; border-radius: 12px;
-  background: rgba(0,0,0,.62); color: #fff; font: 700 16px system-ui, sans-serif; cursor: pointer; }
-#ui-floors button.on { background: #2c7a2c; }
+  display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 8px; }
+#ui-floors .row { display: flex; flex-direction: column; gap: 8px; }
+#ui-floors button { min-width: 46px; height: 46px; padding: 0 8px; border: 1px solid var(--line);
+  border-radius: 12px; background: var(--glass); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); color: var(--ink); font: 700 16px Univers, sans-serif; cursor: pointer; }
+#ui-floors button.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 /* Прозрачность на полупрозрачной подложке давала контраст около 2:1 —
    цифры неактивных этажей не читались. Состояние задано цветом. */
-#ui-floors button:disabled, #ui-floors button.off { background: rgba(0,0,0,.45); color: #c9c9c9; }
-#ui-floors .note { max-width: 170px; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.7);
-  color: #fff; font-size: 13px; line-height: 1.3; text-align: right; }
+#ui-floors button:disabled, #ui-floors button.off { background: rgba(20,22,25,.66); color: rgba(241,242,239,.5); }
+#ui-floors .note { max-width: 170px; padding: 7px 9px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  color: var(--ink); font-size: 13px; line-height: 1.3; text-align: right; }
 
 /* Главное действие: живёт в том же слоте, что и карточка помещения, и они
    не встречаются — кнопка видна, только пока не выбран этаж. */
 #ui-reveal { position: absolute; z-index: 3; left: 50%; transform: translateX(-50%);
   bottom: calc(var(--gap-b) + 54px); height: 46px; padding: 0 20px; border: 0; border-radius: 23px;
-  background: #2c7a2c; color: #fff; font: 600 15px system-ui, sans-serif; cursor: pointer;
-  box-shadow: 0 6px 22px rgba(0,0,0,.32); }
+  background: var(--accent); color: var(--accent-ink); font: 700 15px Univers, sans-serif; cursor: pointer;
+  box-shadow: var(--shadow); }
+/* В начальном состоянии кнопка «внутрь» ушла бы под лист поиска. */
+#ui-root.start #ui-reveal { display: none; }
 
 #ui-legend { position: absolute; z-index: 4; left: var(--gap-l); bottom: var(--gap-b);
   display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-#ui-legend .toggle { height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
-  background: rgba(0,0,0,.62); color: #fff; font: 600 13px system-ui, sans-serif; cursor: pointer; }
+#ui-legend .toggle { height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  color: var(--ink); font: 400 13px Univers, sans-serif; cursor: pointer; }
 #ui-legend .list { pointer-events: auto; box-sizing: border-box;
   width: min(260px, calc(100vw - var(--gap-l) - var(--gap-r)));
-  max-height: min(46vh, 340px); overflow-y: auto; padding: 10px 12px; border-radius: 12px;
-  background: rgba(0,0,0,.78); color: #fff; font-size: 13px; line-height: 1.6; }
+  max-height: min(46vh, 340px); overflow-y: auto; padding: 12px 14px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur); color: var(--ink); font-size: 13px; line-height: 1.6; }
 #ui-legend .list i { display: inline-block; width: 12px; height: 12px; border-radius: 3px;
   margin-right: 8px; vertical-align: -1px; }
+/* В начальном состоянии обозначения прячутся: экран занят вопросом. */
+#ui-root.start #ui-legend { display: none; }
 
 @media (orientation: landscape) {
   #ui-search { right: auto; width: min(380px, 44vw); }
+  #ui-root.start #ui-search { bottom: var(--gap-b); }
   #ui-hint { right: auto; max-width: min(380px, 44vw); }
   #ui-floors { top: var(--gap-t); bottom: auto; }
   #ui-floors .row { flex-direction: row-reverse; gap: 8px; }
   #ui-card { left: 50%; right: auto; transform: translateX(-50%); bottom: var(--gap-b);
     width: min(420px, calc(100vw - var(--gap-l) - var(--gap-r) - 180px)); }
+  #ui-card.compact { max-height: 30vh; }
 }
 
 /* Короткий портретный экран: тач-цели остаются в норме, колонна становится ниже. */
@@ -188,6 +261,7 @@ const STYLE = `
   #ui-floors { bottom: calc(var(--gap-b) + 160px); gap: 8px; }
   #ui-floors .row { gap: 8px; }
   #ui-floors button { min-width: 44px; height: 44px; }
+  #ui-search .ask { font-size: 26px; }
 }
 `;
 
@@ -466,12 +540,17 @@ export function createUi(
 
   const search = document.createElement('div');
   search.id = 'ui-search';
+  // Первый экран начинается с вопроса, а не со здания: человек приходит
+  // с «где 4.09», и первое, что он видит, — вопрос и поле под ним.
+  const searchAsk = document.createElement('div');
+  searchAsk.className = 'ask';
+  searchAsk.textContent = 'Куда вам?';
   const searchField = document.createElement('div');
   searchField.className = 'field';
   const searchInput = document.createElement('input');
   searchInput.type = 'search';
   searchInput.autocomplete = 'off';
-  searchInput.placeholder = 'Куда вам? Номер или название';
+  searchInput.placeholder = 'Номер аудитории или название';
   searchInput.setAttribute('aria-label', 'Поиск помещения по номеру или названию');
   const searchClear = document.createElement('button');
   searchClear.type = 'button';
@@ -492,7 +571,35 @@ export function createUi(
   searchList.setAttribute('aria-label', 'Найденные помещения');
   // Отладочный оверлей занимает тот же угол: при ?debug=1 поиск уходит ниже.
   if (debugPanel) search.style.top = 'calc(var(--gap-t) + 172px)';
-  search.append(searchField, searchList);
+  // Быстрые подсказки: три места, которые спрашивают чаще всего. Они не
+  // выдумываются, а берутся из данных здания — если такого назначения в доме
+  // нет, подсказки просто не будет.
+  const searchChips = document.createElement('div');
+  searchChips.className = 'chips';
+  const CHIP_PURPOSES: RoomPurpose[] = ['library', 'cafe', 'wc', 'workshop'];
+  for (const purpose of CHIP_PURPOSES) {
+    const has = building.floors.some((floor) => floor.rooms.some((room) => room.type === purpose));
+    if (!has) continue;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.textContent = PURPOSE_LABEL[purpose];
+    chip.addEventListener('click', () => {
+      searchInput.value = PURPOSE_LABEL[purpose];
+      searchInput.focus();
+      renderSearch();
+    });
+    searchChips.appendChild(chip);
+  }
+  // Откуда идём: приходит из ссылки на наклейке. Человек это видит на первом
+  // же экране и не должен ничего выбирать — остаётся один вопрос, куда.
+  const searchMe = document.createElement('div');
+  searchMe.className = 'me';
+  const searchMeName = document.createElement('b');
+  searchMe.append(document.createTextNode('Вы здесь: '), searchMeName);
+  const searchTip = document.createElement('div');
+  searchTip.className = 'tip';
+  searchTip.textContent = 'Или покрутите здание пальцем и выберите этаж справа.';
+  search.append(searchAsk, searchField, searchChips, searchMe, searchTip, searchList);
   container.appendChild(search);
 
   // Планировок нет ни у одного этажа — искать нечего, и поле только мешает.
@@ -598,6 +705,25 @@ export function createUi(
   cardClose.addEventListener('click', () => {
     store.set({ selectedRoomId: null });
   });
+  // Пока маршрут идёт, карточка свёрнута: видно название цели и текущий шаг,
+  // остальное — по этой кнопке. План при этом не закрыт.
+  const cardGrip = document.createElement('button');
+  cardGrip.type = 'button';
+  cardGrip.className = 'grip';
+  cardGrip.hidden = true;
+  cardGrip.textContent = '⌃';
+  cardGrip.setAttribute('aria-expanded', 'false');
+  cardGrip.setAttribute('aria-label', 'Развернуть карточку маршрута');
+  cardGrip.addEventListener('click', () => {
+    const compact = card.classList.toggle('compact');
+    cardGrip.textContent = compact ? '⌃' : '⌄';
+    cardGrip.setAttribute('aria-expanded', compact ? 'false' : 'true');
+    cardGrip.setAttribute(
+      'aria-label',
+      compact ? 'Развернуть карточку маршрута' : 'Свернуть карточку маршрута',
+    );
+    measureCard();
+  });
   const cardTitle = document.createElement('div');
   cardTitle.className = 'title';
   // Живая область — только заголовок. Раньше ею была вся карточка, и
@@ -618,12 +744,13 @@ export function createUi(
   cardActions.className = 'actions';
   const routeFromButton = document.createElement('button');
   routeFromButton.type = 'button';
-  routeFromButton.textContent = 'Отсюда';
-  routeFromButton.setAttribute('aria-label', 'Построить маршрут от этого помещения');
+  routeFromButton.className = 'ghost';
+  routeFromButton.textContent = 'Я здесь';
+  routeFromButton.setAttribute('aria-label', 'Отметить это место как начало пути');
   const routeToButton = document.createElement('button');
   routeToButton.type = 'button';
-  routeToButton.textContent = 'Сюда';
-  routeToButton.setAttribute('aria-label', 'Построить маршрут к этому помещению');
+  routeToButton.textContent = 'Провести меня';
+  routeToButton.setAttribute('aria-label', 'Провести меня к этому помещению');
   const routeClearButton = document.createElement('button');
   routeClearButton.type = 'button';
   routeClearButton.className = 'ghost';
@@ -636,7 +763,9 @@ export function createUi(
   shareButton.className = 'ghost';
   shareButton.textContent = 'Ссылка';
   shareButton.setAttribute('aria-label', 'Скопировать ссылку на это место');
-  cardActions.append(routeFromButton, routeToButton, routeClearButton, shareButton);
+  // Главное действие идёт первым и выглядит главным. Второе — «Я здесь» —
+  // нужно только тому, кто отмечает, откуда идёт.
+  cardActions.append(routeToButton, routeFromButton, routeClearButton, shareButton);
 
   /** Собрать адрес с текущими концами маршрута. */
   function shareUrl(): string {
@@ -753,7 +882,7 @@ export function createUi(
   });
   routeClearButton.addEventListener('click', () => actions.clearRoute());
 
-  card.append(cardClose, cardTitle, cardWhere, cardActions, routeBlock);
+  card.append(cardClose, cardGrip, cardTitle, cardWhere, cardActions, routeBlock);
   container.appendChild(card);
 
   /* ---------- главное действие: подлёт камеры ---------- */
@@ -938,6 +1067,8 @@ export function createUi(
   }
   reportInterfaceEdge();
   window.addEventListener('resize', reportInterfaceEdge);
+  // Поворот экрана меняет и ширину листа, и его высоту.
+  window.addEventListener('resize', measureStart);
 
   /* ---------- отрисовка состояния ---------- */
 
@@ -948,10 +1079,38 @@ export function createUi(
 
   /** Последний показанный маршрут: из него собирается блок в карточке. */
   let shownRoute: Route | undefined;
+  /** Какой маршрут уже свёрнут: чтобы разворот руками не схлопывался обратно. */
+  let shownRouteId = '';
+  const routeKey = (route: Route): string => `${route.fromName}→${route.toName}:${route.steps.length}`;
   /** Раскрыто ли здание сейчас: об этом сообщает сцена, кадрами. */
   let opened = false;
   /** Обе точки выбраны, а пути между ними не нашлось. */
   let routeUnreachable = false;
+
+  /**
+   * Начальное состояние: ничего не выбрано и маршрут не начат. Тогда поиск
+   * живёт листом снизу с вопросом «Куда вам?», а здание работает фоном.
+   */
+  function syncStart(): void {
+    const state = store.state;
+    // Точка старта из ссылки первый экран не отменяет: человек всё ещё
+    // не сказал, куда ему. Отменяет только выбранное помещение или цель.
+    const idle = state.selectedRoomId === null && state.routeToId === null;
+    container.classList.toggle('start', idle);
+    window.requestAnimationFrame(measureStart);
+    const from = state.routeFromId;
+    const fromPlace = from ? (building.roomById(from) ?? building.verticalById(from)) : undefined;
+    searchMe.classList.toggle('on', Boolean(fromPlace));
+    searchMeName.textContent = fromPlace?.name ?? '';
+  }
+
+  /** Свернуть или развернуть карточку под текущий маршрут. */
+  function setCompact(compact: boolean): void {
+    cardGrip.hidden = !compact && !card.classList.contains('compact');
+    card.classList.toggle('compact', compact);
+    cardGrip.textContent = compact ? '⌃' : '⌄';
+    cardGrip.setAttribute('aria-expanded', compact ? 'false' : 'true');
+  }
 
   function renderRoute(): void {
     const state = store.state;
@@ -987,8 +1146,16 @@ export function createUi(
       stepRow.hidden = false;
       allStepsButton.hidden = false;
       routeBlock.hidden = false;
+      // Маршрут построен — человек идёт, а не читает карточку: она сворачивается
+      // в полосу с текущим шагом. Развернуть можно кнопкой, состояние держится.
+      cardGrip.hidden = false;
+      if (shownRouteId !== routeKey(shownRoute)) {
+        shownRouteId = routeKey(shownRoute);
+        setCompact(true);
+      }
       showStep(stepIndex);
       measureCard();
+      syncStart();
       return;
     }
 
@@ -997,6 +1164,8 @@ export function createUi(
       routeHead.textContent = 'Пути не нашлось: у помещения нет двери в данных';
       routeSteps.replaceChildren();
       routeBlock.hidden = false;
+      setCompact(false);
+      syncStart();
       return;
     }
 
@@ -1007,11 +1176,17 @@ export function createUi(
           : 'Теперь выберите, откуда идти — тапом или поиском';
       routeSteps.replaceChildren();
       routeBlock.hidden = false;
+      setCompact(false);
       measureCard();
+      syncStart();
       return;
     }
     routeBlock.hidden = true;
+    shownRouteId = '';
+    cardGrip.hidden = true;
+    setCompact(false);
     measureCard();
+    syncStart();
   }
 
   function render(state: SceneState): void {
@@ -1042,6 +1217,7 @@ export function createUi(
     if (!room && !place) {
       card.hidden = true;
       measureCard();
+      syncStart();
       return;
     }
     const number = room?.planNumber ?? '';
@@ -1074,6 +1250,17 @@ export function createUi(
     container.style.setProperty('--card-h', `${Math.max(height, 96)}px`);
   }
 
+  /**
+   * Высота листа первого экрана. Колонна этажей стоит над ним, а лист растёт
+   * от содержимого — точку старта из ссылки, подсказки, находки поиска, —
+   * поэтому высота меряется, а не задаётся числом.
+   */
+  function measureStart(): void {
+    const start = container.classList.contains('start');
+    const height = start ? search.offsetHeight : 0;
+    container.style.setProperty('--start-h', `${height}px`);
+  }
+
   render(store.state);
   const unsubscribe = store.subscribe((next) => render(next));
 
@@ -1097,6 +1284,7 @@ export function createUi(
       window.clearTimeout(noteTimer);
       window.clearTimeout(shareTimer);
       window.removeEventListener('resize', reportInterfaceEdge);
+      window.removeEventListener('resize', measureStart);
       window.removeEventListener('pointerdown', onScenePointer, true);
       window.removeEventListener('keydown', onKeyDown);
       container.remove();

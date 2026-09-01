@@ -87,24 +87,23 @@ function makePanelTexture(): CanvasTexture {
  * дейтеранопию: там худшая пара по-прежнему 4.3, помечено в бэклоге.
  */
 const PURPOSE_COLOR: Record<RoomPurpose, number> = {
-  studio: 0xe5b37d,
-  workshop: 0xe19c7a,
-  lecture: 0x9ace91,
-  class: 0x9ace91,
-  lab: 0x7ab1e4,
-  gallery: 0xebe3c2,
-  library: 0x6cc7ba,
-  cowork: 0xebe3c2,
-  office: 0xbba1db,
-  admin: 0xd9d38a,
-  lobby: 0xeae6dc,
-  cafe: 0xe19c7a,
-  shop: 0xbba1db,
-  wc: 0x86c3d9,
-  storage: 0xbdbdb2,
-  tech: 0xaeaea4,
+  studio: 0xc98a4b,
+  workshop: 0xb5654a,
+  lecture: 0x7fa98c,
+  class: 0x7fa98c,
+  lab: 0x5a7fa8,
+  gallery: 0xd9d2c4,
+  library: 0x3e8f86,
+  cowork: 0xd9d2c4,
+  office: 0x8e7ba8,
+  admin: 0xb2a465,
+  lobby: 0xe4e0d8,
+  cafe: 0xb5654a,
+  shop: 0x8e7ba8,
+  wc: 0x6e9aaa,
+  storage: 0xb0b0a8,
+  tech: 0xa3a39b,
 };
-
 export interface Palette {
   surface: (key: SurfaceKey) => Material;
   /** Базовый материал кликабельных плит: цвет приходит per-instance. */
@@ -185,6 +184,6 @@ export function purposeCss(purpose: RoomPurpose): string {
 
 /** Цвета вертикальных связей в легенде. */
 export const VERTICAL_CSS: Record<'stairs' | 'lift', string> = {
-  lift: '#e6c05c',
-  stairs: '#dac4ad',
+  lift: '#d9a93a',
+  stairs: '#c9b39a',
 };

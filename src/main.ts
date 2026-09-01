@@ -435,4 +435,22 @@ function main(): void {
   });
 }
 
-main();
+/**
+ * Подписи на плане растеризуются в канву один раз. Если шрифт брендбука
+ * к этому моменту не загружен, они запекутся системным и такими останутся
+ * до перезагрузки страницы. Поэтому ждём шрифт — но не дольше секунды:
+ * первый кадр не должен зависеть от сети.
+ */
+function whenFontsReady(): Promise<unknown> {
+  const fonts = document.fonts as FontFaceSet | undefined;
+  if (!fonts) return Promise.resolve();
+  const wait = Promise.all([fonts.load('400 42px Univers'), fonts.load('700 42px Univers')]);
+  const limit = new Promise((resolve) => {
+    window.setTimeout(resolve, 1000);
+  });
+  return Promise.race([wait, limit]).catch(() => undefined);
+}
+
+void whenFontsReady().then(() => {
+  main();
+});
