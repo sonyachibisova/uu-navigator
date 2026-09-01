@@ -103,6 +103,19 @@ const ANCHOR_IN = [0.01, 0.016] as const;
  */
 const edgeUniform = { value: 1 };
 
+/**
+ * Потолок экранного размера подписи, доля высоты кадра. Размер подписи задан
+ * в метрах и ничем не был ограничен сверху: у самого пола «4.09» вырастал
+ * на полэкрана и накрывал соседние помещения вместе с их номерами. Дальше
+ * этой доли подпись перестаёт расти — она держит размер, как надпись
+ * на указателе, а не как объект сцены.
+ *
+ * Величина выбрана так, чтобы полная подпись оставалась заметно крупнее
+ * порога своего появления (`FULL_IN`) и при этом две подписи по вертикали
+ * не могли занять экран целиком.
+ */
+const MAX_SCREEN_FRACTION = 0.085;
+
 /** Сообщить движку, какую долю ширины кадра занимает интерфейс справа. */
 export function setLabelEdge(fraction: number): void {
   edgeUniform.value = Math.min(Math.max(1 - fraction * 2, 0), 1);
@@ -218,6 +231,7 @@ function entriesOf(spec: LabelSpec): Entry[] {
 class LabelMaterial extends MeshBasicMaterial {
   override onBeforeCompile(shader: WebGLProgramParametersWithUniforms): void {
     shader.uniforms['uEdge'] = edgeUniform;
+    shader.uniforms['uMaxFraction'] = { value: MAX_SCREEN_FRACTION };
     shader.vertexShader = shader.vertexShader
       .replace(
         '#include <common>',
@@ -226,6 +240,7 @@ attribute vec2 aSize;
 attribute vec4 aUvRect;
 attribute vec4 aRange;
 uniform float uEdge;
+uniform float uMaxFraction;
 varying vec2 vAtlasUv;
 varying float vLabelAlpha;`,
       )
@@ -250,7 +265,11 @@ vLabelAlpha = appear * vanish * edge;
 // Углы прибавляются уже в пространстве камеры: четырёхугольник всегда
 // параллелен экрану, а его размер остаётся размером в метрах. Погашенная
 // подпись схлопывается в точку — она не доходит до растеризации вовсе.
-mvPosition.xy += position.xy * aSize * step( 0.001, vLabelAlpha );
+// Потолок размера. Пороги появления и ухода считаются по настоящей доле
+// экрана, а зажимается только сам четырёхугольник: иначе подпись, упёршаяся
+// в потолок, перестала бы сменять вид с номера на название.
+float sizeLimit = screenFraction > uMaxFraction ? uMaxFraction / screenFraction : 1.0;
+mvPosition.xy += position.xy * aSize * sizeLimit * step( 0.001, vLabelAlpha );
 gl_Position = projectionMatrix * mvPosition;
 vAtlasUv = aUvRect.xy + uv * aUvRect.zw;`,
       );

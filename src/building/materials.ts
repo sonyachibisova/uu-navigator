@@ -71,22 +71,36 @@ function makePanelTexture(): CanvasTexture {
   return texture;
 }
 
-/** Цвет плиты пола по назначению помещения. Ключи — словарь `data/schema.ts`. */
+/**
+ * Цвет плиты пола по назначению помещения. Ключи — словарь `data/schema.ts`.
+ *
+ * Цвета разведены по различимости, а не подобраны на глаз. Мерой служит
+ * ΔE00: у прежнего набора худшая пара «Администрация ↔ Лифт» давала 4.9,
+ * то есть один и тот же жёлтый для человека, который сверяет план с
+ * легендой; «Компьютерные классы ↔ Санузлы» — 8.0, один и тот же голубой.
+ * Здесь худшая пара — 10.3, и это при сохранённом языке палитры: оттенки
+ * сдвинуты, а не заменены, лифт остался золотым (к нему привязаны наклейки),
+ * контраст подписи на плите нигде не ниже 4.6:1.
+ *
+ * Полностью развести двенадцать приглушённых цветов до ΔE00 ≥ 12 подкруткой
+ * нельзя — это пересборка палитры, и она за художником. То же про
+ * дейтеранопию: там худшая пара по-прежнему 4.3, помечено в бэклоге.
+ */
 const PURPOSE_COLOR: Record<RoomPurpose, number> = {
-  studio: 0xe0bd7e,
-  workshop: 0xe09a78,
-  lecture: 0x96cf8b,
-  class: 0x96cf8b,
-  lab: 0x7fb2e0,
-  gallery: 0xe6dcb8,
+  studio: 0xe5b37d,
+  workshop: 0xe19c7a,
+  lecture: 0x9ace91,
+  class: 0x9ace91,
+  lab: 0x7ab1e4,
+  gallery: 0xebe3c2,
   library: 0x6cc7ba,
-  cowork: 0xe6dcb8,
-  office: 0xb99fdc,
-  admin: 0xd9c45e,
+  cowork: 0xebe3c2,
+  office: 0xbba1db,
+  admin: 0xd9d38a,
   lobby: 0xeae6dc,
-  cafe: 0xe09a78,
-  shop: 0xb99fdc,
-  wc: 0x7dc0dc,
+  cafe: 0xe19c7a,
+  shop: 0xbba1db,
+  wc: 0x86c3d9,
   storage: 0xbdbdb2,
   tech: 0xaeaea4,
 };
@@ -129,7 +143,7 @@ export function createPalette(): Palette {
     door: new MeshLambertMaterial({ color: 0xb0703a }),
     corridor: new MeshLambertMaterial({ color: 0xeae6dc }),
     lift: new MeshStandardMaterial({ color: 0xe6c05c, roughness: 0.5, metalness: 0.3 }),
-    stair: new MeshLambertMaterial({ color: 0xcfc6ae }),
+    stair: new MeshLambertMaterial({ color: 0xdac4ad }),
   };
   for (const [key, material] of Object.entries(surfaces)) material.name = `surface.${key}`;
 
@@ -172,5 +186,5 @@ export function purposeCss(purpose: RoomPurpose): string {
 /** Цвета вертикальных связей в легенде. */
 export const VERTICAL_CSS: Record<'stairs' | 'lift', string> = {
   lift: '#e6c05c',
-  stairs: '#cfc6ae',
+  stairs: '#dac4ad',
 };

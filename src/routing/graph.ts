@@ -27,6 +27,7 @@
  *    рёбрами: она выведена из высоты этажа и разная у лестницы и лифта.
  */
 import type { Bounds, FloorView, RoomView, VerticalView } from '@building/source';
+import { joined } from '@data/schema';
 
 /** Во сколько раз этаж по лестнице «длиннее» своей высоты. */
 const STAIR_FACTOR = 2.6;
@@ -47,8 +48,7 @@ const LIFT_FACTOR = 1.6;
  * В час пик это очередь, которую собирает навигатор.
  */
 const LIFT_WAIT = 30;
-/** Зазор, в пределах которого прямоугольники коридоров считаются стыкующимися. */
-const JOIN_GAP = 0.6;
+
 
 export type NodeKind = 'room' | 'door' | 'corridor' | 'vertical';
 
@@ -142,14 +142,30 @@ function project(point: Point, segment: Segment): { point: Point; t: number } {
   return { point: { x: segment.a.x + dx * t, z: segment.a.z + dz * t }, t };
 }
 
-/** Пересечение прямоугольников с допуском: `undefined`, если они не стыкуются. */
+/**
+ * Место стыка двух коридорных прямоугольников: `undefined`, если стыка нет.
+ *
+ * Стыком считается общая грань шириной не меньше прохода — тем же правилом
+ * `joined()` из `data/schema.ts`, которым проверяются данные. Раньше здесь
+ * было своё: оба прямоугольника раздувались на 0.6 м по обеим осям, а ширина
+ * общей грани не требовалась вовсе. Простенок в 21 см такая проверка
+ * объявляла проходом, и восемь маршрутов шли сквозь стену. Двух правил
+ * стыковки в проекте быть не должно.
+ */
 function overlap(one: Bounds, two: Bounds): Bounds | undefined {
-  const x0 = Math.max(one.x0, two.x0) - JOIN_GAP;
-  const x1 = Math.min(one.x1, two.x1) + JOIN_GAP;
-  const z0 = Math.max(one.z0, two.z0) - JOIN_GAP;
-  const z1 = Math.min(one.z1, two.z1) + JOIN_GAP;
-  if (x1 < x0 || z1 < z0) return undefined;
-  return { x0, x1, z0, z1 };
+  if (!joined(one, two)) return undefined;
+  const x0 = Math.max(one.x0, two.x0);
+  const x1 = Math.min(one.x1, two.x1);
+  const z0 = Math.max(one.z0, two.z0);
+  const z1 = Math.min(one.z1, two.z1);
+  // При стыке впритык грань вырождается в линию, а при допустимом зазоре
+  // границы меняются местами: середина зазора и есть точка перехода.
+  return {
+    x0: Math.min(x0, x1),
+    x1: Math.max(x0, x1),
+    z0: Math.min(z0, z1),
+    z1: Math.max(z0, z1),
+  };
 }
 
 /** Коридор в сборке: осевая линия и узлы на ней, ещё не связанные рёбрами. */

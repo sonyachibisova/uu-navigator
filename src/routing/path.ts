@@ -52,7 +52,12 @@ export interface Route {
   steps: RouteStep[];
   /** Длина пути в метрах: только горизонтальные звенья. */
   meters: number;
-  /** Оценка времени в минутах, округлённая вверх. */
+  /**
+   * Оценка времени в минутах, округлённая вверх. Считается по полной
+   * стоимости пути, а не по метрам ленты: подъём по лестнице и ожидание
+   * лифта в неё входят, поэтому «два этажа пешком» и «два этажа на лифте»
+   * дают разные числа, как и в жизни.
+   */
   minutes: number;
   fromName: string;
   toName: string;
@@ -114,13 +119,23 @@ export interface PathOptions {
   stepFree?: boolean;
 }
 
-/** Найти цепочку узлов от `from` к `to`. Пустой массив — пути нет. */
+/**
+ * Найти цепочку узлов от `from` к `to`. Пустой массив — пути нет.
+ *
+ * Полная стоимость пути отдаётся отдельно, через `cost`: в неё входят
+ * подъём по лестнице и ожидание лифта, выраженные в метрах пути. Оценка
+ * времени считается по ней, а не по горизонтальным метрам, иначе лестница
+ * и лифт дают одинаковые «2 мин», а пять этажей пешком — столько же,
+ * сколько тридцать метров по коридору.
+ */
 export function findPath(
   graph: RouteGraph,
   from: number,
   to: number,
   options: PathOptions = {},
+  cost?: { total: number },
 ): number[] {
+  if (cost) cost.total = 0;
   const count = graph.nodes.length;
   if (from < 0 || to < 0 || from >= count || to >= count) return [];
   const best = new Float64Array(count).fill(Number.POSITIVE_INFINITY);
@@ -148,6 +163,7 @@ export function findPath(
   }
 
   if (!done[to]) return [];
+  if (cost) cost.total = best[to] ?? 0;
   const path: number[] = [];
   for (let at = to; at >= 0; at = previous[at] ?? -1) {
     path.push(at);
@@ -390,7 +406,8 @@ export function buildRoute(
   const from = graph.anchorNode(fromId);
   const to = graph.anchorNode(toId);
   if (from === undefined || to === undefined || from === to) return undefined;
-  const path = findPath(graph, from, to, options);
+  const cost = { total: 0 };
+  const path = findPath(graph, from, to, options, cost);
   if (path.length < 2) return undefined;
 
   const raw = path.map((index) => graph.nodes[index]).filter((node): node is GraphNode => !!node);
@@ -434,7 +451,9 @@ export function buildRoute(
     legs,
     steps,
     meters,
-    minutes: Math.max(1, Math.ceil(meters / WALK_SPEED / 60)),
+    // Полная стоимость выражена в метрах пути (граф так и складывает
+    // подъём с коридорами), поэтому делится на ту же скорость шага.
+    minutes: Math.max(1, Math.ceil(Math.max(cost.total, meters) / WALK_SPEED / 60)),
     fromName,
     toName,
   };

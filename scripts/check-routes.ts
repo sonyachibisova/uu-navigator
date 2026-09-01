@@ -14,15 +14,20 @@
  *  1. маршрут есть между любой парой помещений;
  *  2. названная длина совпадает с длиной нарисованной ленты;
  *  3. каждый поворот ленты сказан словами, и ни один не выдуман;
- *  4. режим «без лестниц» не ведёт по ступеням.
+ *  4. режим «без лестниц» не ведёт по ступеням;
+ *  5. коридоры сшиты только там, где между ними настоящий проход, —
+ *     простенок проходом не считается;
+ *  6. время в минутах учитывает подъём: маршрут через этажи не может
+ *     занимать столько же, сколько тот же путь по ровному полу.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildRouteGraph } from '../src/routing/graph';
+import { joined, PASSAGE_MIN, WALL_TOLERANCE } from '../data/schema';
 import { buildRoute } from '../src/routing/path';
 import type { Route, RoutePoint } from '../src/routing/path';
-import type { FloorView } from '../src/building/source';
+import type { Bounds, FloorView } from '../src/building/source';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DATA = join(root, 'data');
@@ -186,6 +191,85 @@ for (const from of rooms) {
 }
 
 check(pairs > 0, 'не проверено ни одной пары');
+
+// 6. Время и подъём. Минуты считаются по полной стоимости пути, куда входят
+// подъём по лестнице и ожидание лифта. Проверяется это снизу и независимо от
+// констант графа: на переход между этажами человек тратит не меньше, чем на
+// проход по горизонтали, равный высоте этажей, которые он проходит. Раньше
+// минуты считались из одних горизонтальных метров, и пять этажей пешком
+// стоили столько же, сколько тридцать метров по коридору.
+const WALK = 1.1;
+const heightOf = new Map(floors.map((floor) => [floor.level, floor.height]));
+let flatTime = 0;
+const timeExamples: string[] = [];
+for (const from of rooms) {
+  for (const to of rooms) {
+    if (from === to) continue;
+    const route = buildRoute(graph, from, to);
+    if (!route || route.legs.length < 2) continue;
+    let climb = 0;
+    for (let i = 1; i < route.legs.length; i += 1) {
+      const a = route.legs[i - 1];
+      const b = route.legs[i];
+      if (!a || !b) continue;
+      const steps = Math.abs(b.level - a.level);
+      climb += steps * (heightOf.get(b.level) ?? 4);
+    }
+    const least = Math.max(1, Math.ceil((route.meters + climb) / WALK / 60));
+    if (route.minutes < least) {
+      flatTime += 1;
+      if (timeExamples.length < 3) {
+        timeExamples.push(
+          `${from} → ${to}: сказано ${route.minutes} мин, а только подъём тянет на ${least}`,
+        );
+      }
+    }
+  }
+}
+check(
+  flatTime === 0,
+  `подъём не входит во время в ${flatTime} маршрутах` +
+    (timeExamples.length ? ': ' + timeExamples.join('; ') : ''),
+);
+
+// 5. Стык коридоров. Граф сшивает крылья этажа по пересечению коридорных
+// прямоугольников. Если правило стыковки разойдётся с тем, по которому
+// проверяются данные (`joined` в `data/schema.ts`), в графе появится ребро
+// сквозь простенок — и маршрут пойдёт сквозь стену, оставаясь «правильным»
+// по всем остальным проверкам. Здесь смотрится готовый граф, а не функция
+// стыковки: проверка переживёт любую её переделку.
+const corridorBounds = new Map<string, { level: number; bounds: Bounds }>();
+for (const floor of floors) {
+  for (const corridor of floor.corridors) {
+    corridorBounds.set(corridor.id, { level: floor.level, bounds: corridor.bounds });
+  }
+}
+let fakeJoints = 0;
+const jointExamples: string[] = [];
+graph.edges.forEach((list, index) => {
+  const from = graph.nodes[index];
+  if (!from || from.kind !== 'corridor') return;
+  for (const edge of list) {
+    const to = graph.nodes[edge.to];
+    if (!to || to.kind !== 'corridor') continue;
+    if (to.ownerId === from.ownerId) continue;
+    if (from.level !== to.level) continue;
+    const one = corridorBounds.get(from.ownerId);
+    const two = corridorBounds.get(to.ownerId);
+    if (!one || !two) continue;
+    if (joined(one.bounds, two.bounds)) continue;
+    fakeJoints += 1;
+    if (jointExamples.length < 5) {
+      jointExamples.push(`этаж ${from.level}: «${from.ownerName}» ↔ «${to.ownerName}»`);
+    }
+  }
+});
+check(
+  fakeJoints === 0,
+  `коридоры сшиты сквозь простенок в ${fakeJoints} местах ` +
+    `(проход не уже ${PASSAGE_MIN} м, стена не толще ${WALL_TOLERANCE} м)` +
+    (jointExamples.length ? ': ' + jointExamples.join('; ') : ''),
+);
 check(
   worstLength < 0.05,
   `длина расходится с лентой: худший случай ${worstLength.toFixed(1)} м (${worstLengthPair})`,
