@@ -223,6 +223,9 @@ function roomView(frame: FloorFrame, room: Room, tag: string): RoomView {
           title: room.planNumber ?? '',
           subtitle: room.name,
           position: { x: center.x, y: frame.base + INTERIOR.labelHeight, z: center.z },
+          // Габарит плиты, а не габарит по осям стен: подпись лежит на плите
+          // и не должна выходить за неё даже на толщину перегородки.
+          fit: { width, depth },
         }
       : null;
 
@@ -366,6 +369,7 @@ function verticalView(frame: FloorFrame, link: VerticalLink, tag: string): Verti
       title: '',
       subtitle: link.name,
       position: { x: center.x, y: frame.base + INTERIOR.labelHeight, z: center.z },
+      fit: { width, depth },
     },
   };
 }
@@ -444,7 +448,16 @@ export function buildFloorView(floor: Floor, footprint: Bounds, floorHeight: num
       parts: [],
       rooms: [],
       corridors: [],
-      vertical: [],
+      // Планировки нет — интерьер не строится: выдумывать помещения нельзя.
+      // Но стволы лестниц и лифтов в данных объявлены и на этих этажах, они
+      // и доводят здание до земли. Без них маршрут от входа не построить,
+      // поэтому связи отдаются без единого элемента геометрии: сцена этаж
+      // без планировки всё равно не собирает, а граф путей их видит.
+      vertical: floor.vertical.map((link) => ({
+        ...verticalView(frame, link, tag),
+        parts: [],
+        label: null,
+      })),
     };
   }
 

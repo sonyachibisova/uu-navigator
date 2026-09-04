@@ -17,14 +17,18 @@ import { createLoop } from '@core/loop';
 import { createSceneStore } from '@core/state';
 import type { SceneState } from '@core/state';
 import { initDebugOverlay } from '@core/debug-overlay';
+import { applyLookFromUrl } from '@core/look';
 import { createBuilding } from '@building/building';
 import { BuildingDataError, ProceduralSource } from '@building/sources/procedural';
 import { createInteraction } from '@interaction/controller';
 import { createRoute } from '@building/route';
-import { buildRouteGraph } from '@routing/graph';
+import { createMarkers } from '@building/markers';
+import type { MarkSpot } from '@building/markers';
+import { buildRouteGraph, nodeRef } from '@routing/graph';
 import { buildRoute } from '@routing/path';
 import type { Route } from '@routing/path';
 import { createUi } from '@ui/minimal';
+import type { PlaceInfo } from '@ui/minimal';
 
 /**
  * Полуразмер окна вокруг найденного помещения, метры. Взято около половины
@@ -39,6 +43,13 @@ const ROOM_WINDOW = 16;
  * а не весь этаж.
  */
 const STEP_WINDOW = 11;
+
+/**
+ * Предельное расстояние от точки касания до узла графа, метры. Дальше него
+ * тап считается промахом мимо плана: иначе касание пустого места выбирало бы
+ * что-нибудь на другом конце этажа, и снять выбор стало бы нечем.
+ */
+const ANCHOR_LIMIT = 5;
 
 /** Текст для человека, у которого не запустилась 3D-графика. */
 const NO_WEBGL_TEXT =
@@ -117,6 +128,11 @@ function renderDataError(root: HTMLElement, error: BuildingDataError): void {
 }
 
 function main(): void {
+  // Облик берётся из `@core/look`; адрес может подменить вариант, пока
+  // владелец выбирает. Делается до сборки сцены: палитра, подписи, лента
+  // и фон читают выбор один раз при создании.
+  applyLookFromUrl(window.location.search);
+
   const container = document.getElementById('scene');
   const overlayRoot = document.getElementById('overlay-root') ?? document.body;
   if (!container) throw new Error('В разметке нет контейнера сцены #scene');
@@ -165,10 +181,13 @@ function main(): void {
   const building = createBuilding(scene, source);
 
   // Граф путей строится один раз: он зависит только от данных здания.
-  const routeGraph = buildRouteGraph(building.floors);
+  // Вход пришивается к нему тем же вызовом: он часть здания, а не интерфейса.
+  const routeGraph = buildRouteGraph(building.floors, { entrance: building.entrance });
   const elevations = new Map(building.floors.map((floor) => [floor.level, floor.elevation]));
-  const routeView = createRoute((level) => elevations.get(level) ?? 0);
-  scene.add(routeView.group);
+  const elevationOf = (level: number): number => elevations.get(level) ?? 0;
+  const routeView = createRoute(elevationOf);
+  const markers = createMarkers(elevationOf);
+  scene.add(routeView.group, markers.group);
 
   /**
    * Интерфейс появляется позже сцены, а маршрут считается уже в подписке:
@@ -176,9 +195,16 @@ function main(): void {
    * а не при объявлении.
    */
   const uiRef: {
-    current?: { showRoute: (route: Route | undefined, unreachable?: boolean) => void };
+    current?: {
+      showRoute: (
+        route: Route | undefined,
+        facts?: { unreachable?: boolean; alternative?: boolean },
+      ) => void;
+    };
   } = {};
   let shownRoute: Route | undefined;
+  /** Есть ли у показанного маршрута второй вариант: с лестницами и без. */
+  let routeAlternative = false;
   /** Точка, которую передаём камере: одна на весь срок жизни сцены. */
   const focusPoint = new Vector3();
 
@@ -199,15 +225,84 @@ function main(): void {
     // О подмене говорит карточка.
     if (recompute) {
       shownRoute = undefined;
+      routeAlternative = false;
       if (from && to && from !== to) {
         shownRoute =
           buildRoute(routeGraph, from, to, { stepFree: state.stepFree }) ??
           (state.stepFree ? buildRoute(routeGraph, from, to) : undefined);
+        // Второй путь предлагается, только если он есть и отличается от
+        // показанного. Кнопка «без лестниц» там, где путь один, — это выбор
+        // без выбора, и человек справедливо не понимает, зачем она.
+        if (shownRoute) {
+          const other = buildRoute(routeGraph, from, to, { stepFree: !state.stepFree });
+          routeAlternative =
+            other !== undefined && Math.abs(other.meters - shownRoute.meters) > 0.5;
+        }
       }
     }
     routeView.show(shownRoute, state.mode === 'floor' ? state.activeFloor : null);
     const asked = Boolean(from && to && from !== to);
-    uiRef.current?.showRoute(shownRoute, asked && !shownRoute);
+    uiRef.current?.showRoute(shownRoute, {
+      unreachable: asked && !shownRoute,
+      alternative: routeAlternative,
+    });
+  }
+
+  /**
+   * Как назвать место по идентификатору. Идентификатором может быть помещение,
+   * лестница, лифт, вход или ссылка на узел графа — кусок коридора, у которого
+   * своего имени в данных нет. Интерфейс знает только строку; всё остальное
+   * собирается здесь, где на руках и здание, и граф.
+   */
+  function placeInfoOf(id: string): PlaceInfo | undefined {
+    const shortName = building.passport.shortName;
+    const room = building.roomById(id);
+    if (room) {
+      return {
+        number: room.planNumber ?? '',
+        name: room.name,
+        where: `${room.floor} этаж, ${shortName}`,
+      };
+    }
+    const vertical = building.verticalById(id);
+    if (vertical) {
+      const levels = [...vertical.levels].sort((one, two) => one - two);
+      const first = levels[0] ?? vertical.level;
+      const last = levels[levels.length - 1] ?? vertical.level;
+      return {
+        number: '',
+        name: vertical.name,
+        where:
+          levels.length > 1
+            ? `этажи ${first}–${last}, ${shortName}`
+            : `${first} этаж, ${shortName}`,
+      };
+    }
+    const place = routeGraph.placeOf(id);
+    if (!place) return undefined;
+    return {
+      number: '',
+      name: place.kind === 'corridor' ? `Коридор: ${place.name}` : place.name,
+      where: `${place.level} этаж, ${shortName}`,
+    };
+  }
+
+  /** Где стоит метка этого места и есть ли у него плита под контур. */
+  function spotOf(id: string, raised: boolean): MarkSpot | undefined {
+    const room = building.roomById(id);
+    if (room) {
+      return {
+        x: room.plate.center.x,
+        z: room.plate.center.z,
+        level: room.floor,
+        width: room.plate.width,
+        depth: room.plate.depth,
+        raised,
+      };
+    }
+    const place = routeGraph.placeOf(id);
+    if (!place) return undefined;
+    return { x: place.x, z: place.z, level: place.level };
   }
 
   /** Подвести камеру под весь маршрут на текущем этаже. */
@@ -227,7 +322,9 @@ function main(): void {
       z0 = Math.min(z0, point.z);
       z1 = Math.max(z1, point.z);
     }
-    const shownLevel = level ?? legs[0]?.level ?? 0;
+    // Этаж, по высоте которого ставится точка интереса. В режиме «здание
+    // целиком» это этаж цели, а не начала: человек смотрит, куда идти.
+    const shownLevel = level ?? legs[legs.length - 1]?.level ?? 0;
     focusPoint.set((x0 + x1) / 2, elevations.get(shownLevel) ?? 0, (z0 + z1) / 2);
     cameraHandle.frameArea(focusPoint, (x1 - x0) / 2 + 6, (z1 - z0) / 2 + 6);
   }
@@ -263,6 +360,14 @@ function main(): void {
         store.set({ routeFromId: id });
         return;
       }
+      // Открыли другое место, пока показан маршрут в третье. Раньше карточка
+      // оставалась карточкой прошлого маршрута и показывала его последний шаг:
+      // выйти было некуда. Цель снимается, булавка остаётся — человек чаще
+      // всего идёт дальше от того же места.
+      if (next.routeToId && next.routeToId !== id) {
+        store.set({ routeToId: null });
+        return;
+      }
     }
     const endsChanged =
       next.routeFromId !== prev.routeFromId ||
@@ -279,7 +384,27 @@ function main(): void {
       next.mode === 'whole' && next.activeFloor === null && next.selectedRoomId === null;
     const hadSomething = prev.mode !== 'whole' || prev.activeFloor !== null;
     if (cleared && hadSomething) cameraHandle.home();
+    syncMarkers(next, prev);
   });
+
+  /**
+   * Метки на плане: булавка старта и выделение выбранного места. Стор шлёт
+   * изменение и на наведение указателя — трогаем метки только тогда, когда
+   * изменилось то, что они показывают.
+   */
+  function syncMarkers(next: SceneState, prev: SceneState): void {
+    const levelChanged = next.mode !== prev.mode || next.activeFloor !== prev.activeFloor;
+    const selectionChanged =
+      next.selectedRoomId !== prev.selectedRoomId || next.routeFromId !== prev.routeFromId;
+    if (!levelChanged && !selectionChanged) return;
+    markers.setVisibleLevel(next.mode === 'floor' ? next.activeFloor : null);
+    markers.setSelected(next.selectedRoomId ? spotOf(next.selectedRoomId, true) : undefined);
+    markers.setStart(
+      next.routeFromId
+        ? spotOf(next.routeFromId, next.routeFromId === next.selectedRoomId)
+        : undefined,
+    );
+  }
 
   // Стартовое состояние — здание целиком: человек по ссылке сначала узнаёт корпус,
   // а срез по этажу выбирает сам. Применяется без анимации: первый кадр не должен
@@ -303,7 +428,16 @@ function main(): void {
     showStep(step): void {
       // Камера идёт за шагом: окно небольшое — человек читает «поверните
       // налево» и видит именно тот угол, а не весь этаж.
-      focusPoint.set(step.at.x, elevations.get(step.level) ?? 0, step.at.z);
+      const known = building.floors.some((f) => f.level === step.level && f.layoutKnown);
+      // Шаг на этаже без планировки — это вестибюль. Срез по нему показал бы
+      // пустую плиту вместо ответа, поэтому такой шаг смотрится на здании
+      // целиком: там видна и входная группа, и куда от неё идти.
+      if (!known) {
+        if (store.state.mode !== 'whole') store.set({ mode: 'whole', activeFloor: null });
+        cameraHandle.home();
+        return;
+      }
+      focusPoint.set(step.at.x, elevationOf(step.level), step.at.z);
       cameraHandle.frameArea(focusPoint, STEP_WINDOW, STEP_WINDOW);
       if (store.state.activeFloor !== step.level) {
         store.set({ mode: 'floor', activeFloor: step.level });
@@ -318,23 +452,57 @@ function main(): void {
       updateRoute(store.state);
       frameShownRoute(store.state);
     },
-    clearRoute(): void {
-      store.set({ routeFromId: null, routeToId: null });
+    // Маршрут пройден: снимаем и путь, и выбор, и возвращаем общий вид.
+    // Крестика мало — он закрывал карточку, а маршрут оставался, и следующий
+    // тап по плану возвращал в его последний шаг.
+    finishRoute(): void {
+      store.set({
+        routeFromId: null,
+        routeToId: null,
+        selectedRoomId: null,
+        hoveredRoomId: null,
+        mode: 'whole',
+        activeFloor: null,
+        isolate: false,
+      });
       updateRoute(store.state);
+      cameraHandle.home();
     },
+    frameRoute(): void {
+      // «Весь маршрут» — это ответ на «где я в нём». В режиме здания целиком
+      // многоэтажный путь виден только сквозь перекрытия, поэтому кадр берётся
+      // по этажу цели: там конец пути и там же большая его часть.
+      const state = store.state;
+      const last = shownRoute?.legs[shownRoute.legs.length - 1];
+      if (
+        state.activeFloor === null &&
+        last &&
+        building.floors.some((f) => f.level === last.level && f.layoutKnown)
+      ) {
+        store.set({ mode: 'floor', activeFloor: last.level });
+      }
+      frameShownRoute(store.state);
+    },
+    placeInfo: placeInfoOf,
     // Найденное помещение показывается целиком: его этаж, подсветка и кадр
     // вокруг него. Раньше выбрать помещение можно было только пальцем по
     // модели — то есть только то, которое человек и так уже нашёл глазами.
     showRoom(id: string): void {
       const room = building.roomById(id);
-      // Лестница и лифт помещением не являются: карточки у них нет и
-      // подсвечивать нечего — им отдаётся этаж и кадр, и этого достаточно.
+      // Лестница, лифт и вход помещением не являются: плиты у них нет,
+      // и отмечает их метка, а не подъём плиты.
       const place = room ? undefined : building.verticalById(id);
-      const target = room ?? place;
+      const node = room || place ? undefined : routeGraph.placeOf(id);
+      const target = room ?? place ?? node;
       if (!target) return;
+      const level = room ? room.floor : (place?.level ?? node?.level ?? null);
+      // Срез по этажу без планировки — это пустая плита вместо ответа.
+      // Вход на первом этаже показывается на здании целиком, где он и виден.
+      const known =
+        level !== null && building.floors.some((f) => f.level === level && f.layoutKnown);
       store.set({
-        mode: 'floor',
-        activeFloor: room ? room.floor : (place?.level ?? null),
+        mode: known ? 'floor' : 'whole',
+        activeFloor: known ? level : null,
         // Лестница тоже выбирается: у неё есть карточка, и от неё строят
         // маршрут — человек в холле знает лестницу, а не номер помещения.
         selectedRoomId: id,
@@ -347,7 +515,9 @@ function main(): void {
         frameShownRoute(store.state);
         return;
       }
-      focusPoint.set(target.focus.x, target.focus.y, target.focus.z);
+      if (node) focusPoint.set(node.x, elevationOf(node.level), node.z);
+      else if (room) focusPoint.set(room.focus.x, room.focus.y, room.focus.z);
+      else if (place) focusPoint.set(place.focus.x, place.focus.y, place.focus.z);
       cameraHandle.frameRoom(focusPoint, ROOM_WINDOW);
     },
   });
@@ -394,6 +564,14 @@ function main(): void {
     building,
     focus: (point) => cameraHandle.lookAt(point),
     home: () => cameraHandle.home(),
+    // Тап мимо плиты — это коридор, площадка лестницы или место у лифта.
+    // Начать путь можно и оттуда: точка привязывается к ближайшему узлу
+    // графа, поэтому булавка встаёт там, откуда действительно можно идти,
+    // а не в простенке под пальцем.
+    anchorAt(level, x, z): string | null {
+      const index = routeGraph.nearestNode(level, x, z, ANCHOR_LIMIT);
+      return index === undefined ? null : nodeRef(index);
+    },
   });
 
   const debug = initDebugOverlay(rendererHandle.renderer);
@@ -411,6 +589,7 @@ function main(): void {
       environment.requestShadowUpdate();
     }
     routeView.update(dt);
+    markers.update(dt);
     // Раскрытие идёт от близости камеры и меняется в кадре, а не в сторе:
     // интерфейс узнаёт о нём отсюда, и только когда признак действительно
     // изменился — иначе это была бы работа с DOM на каждом кадре.
@@ -437,6 +616,7 @@ function main(): void {
     ui.dispose();
     debug?.dispose();
     routeView.dispose();
+    markers.dispose();
     building.dispose();
     environment.dispose();
     cameraHandle.dispose();

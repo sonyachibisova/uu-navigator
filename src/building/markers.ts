@@ -1,0 +1,313 @@
+/**
+ * Метки на плане: булавка «я здесь» и выделение выбранного места.
+ *
+ * Это шестая группа верхнего уровня — `markersGroup`. Как и маршрут, она не
+ * часть корпуса: инвариант 1 правил проекта говорит про геометрию здания,
+ * а метки появляются и исчезают вместе с ответом на вопрос человека.
+ *
+ * Зачем модуль вообще есть. Осветления плиты и её подъёма оказалось мало:
+ * человек, выбравший помещение из списка, не разглядывал план секунду назад
+ * и не помнит, каким оттенком оно было. Метка над местом и контур по краю
+ * плиты читаются сразу и рядом с соседями — и читаются одинаково при любой
+ * палитре пола, потому что контур двухцветный: светлая полоса изнутри,
+ * тёмная снаружи. На светлой ступени серого работает тёмная, на тёмной —
+ * светлая, и подбирать цвет под палитру не нужно.
+ *
+ * Объектов ровно четыре на всю сцену, а не по объекту на помещение: булавка
+ * старта с кольцом по полу, метка выбранного места и контур. Четыре вызова
+ * отрисовки, независимо от того, сколько в здании помещений.
+ */
+import {
+  BufferAttribute,
+  BufferGeometry,
+  ConeGeometry,
+  DoubleSide,
+  DynamicDrawUsage,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  RingGeometry,
+} from 'three';
+import { SELECT_RAISE } from '@building/floors';
+
+/** Лайм интерфейса: путь и главное действие. Булавка старта — начало пути. */
+const START_COLOR = 0xd8ff3e;
+/** Метка выбранного места — нейтральная: выбор ещё не путь. */
+const PICK_COLOR = 0xffffff;
+/** Тёмная половина контура: она держит его на светлых ступенях серого. */
+const RIM_DARK = 0x0b0c09;
+/** Светлая половина контура: она держит его на тёмных ступенях. */
+const RIM_LIGHT = 0xffffff;
+
+/** Размеры метки, метры: остриё внизу, конус над ним. */
+const PIN_RADIUS = 0.7;
+const PIN_HEIGHT = 1.5;
+/**
+ * На сколько остриё метки поднято над тем, что она отмечает. Подпись
+ * помещения висит на 2.5 м и занимает около метра: метка ниже этого
+ * пряталась за номером ровно того помещения, которое отмечает.
+ */
+const PIN_CLEARANCE = 3;
+/** Размах покачивания метки и его период, метры и секунды. */
+const BOB = 0.22;
+const BOB_PERIOD = 2.4;
+
+/** Кольцо булавки по полу: внутренний и внешний радиус, метры. */
+const RING_INNER = 0.85;
+const RING_OUTER = 1.15;
+/** Высота кольца и контура над плитой: чтобы не спорили с ней по глубине. */
+const LIFT = 0.05;
+
+/**
+ * Ширина одной полосы контура, метры. С высоты, на которой человек смотрит
+ * на этаж, полоса в четверть метра — это один пиксель: контур был, а видно
+ * его не было.
+ */
+const RIM_WIDTH = 0.6;
+/** Порядок отрисовки: поверх плит и ленты маршрута, под подписями. */
+const RENDER_ORDER = 3;
+
+/** Место, отмеченное булавкой или выделением. */
+export interface MarkSpot {
+  x: number;
+  z: number;
+  level: number;
+  /** Габарит плиты в плане: есть только у помещения. Коридор контура не получает. */
+  width?: number;
+  depth?: number;
+  /**
+   * Плита этого помещения сейчас поднята подсветкой выбора. Метка и контур
+   * обязаны подняться вместе с ней, иначе контур уедет под плиту.
+   */
+  raised?: boolean;
+}
+
+export interface MarkersHandle {
+  group: Group;
+  /** Булавка «я здесь». `undefined` — снять. */
+  setStart: (spot: MarkSpot | undefined) => void;
+  /** Выбранное место: метка над ним и контур по краю плиты. */
+  setSelected: (spot: MarkSpot | undefined) => void;
+  /**
+   * Какой этаж показан сейчас: `null` — здание целиком. Метка на невидимом
+   * этаже висела бы в воздухе над чужим планом.
+   */
+  setVisibleLevel: (level: number | null) => void;
+  /** Шаг анимации: метки едва заметно покачиваются. */
+  update: (dt: number) => void;
+  dispose: () => void;
+}
+
+/** Высота пола этажа: приходит снаружи, метки не знают про паспорт здания. */
+export type FloorElevation = (level: number) => number;
+
+/** Конус остриём вниз: общая геометрия обеих меток. */
+function pinGeometry(): ConeGeometry {
+  const geometry = new ConeGeometry(PIN_RADIUS, PIN_HEIGHT, 6);
+  geometry.rotateX(Math.PI);
+  return geometry;
+}
+
+export function createMarkers(elevationOf: FloorElevation): MarkersHandle {
+  const group = new Group();
+  group.name = 'markersGroup';
+
+  // Геометрия конуса одна на обе метки (инвариант 8 правил проекта):
+  // различаются они только материалом.
+  const cone = pinGeometry();
+
+  const startMaterial = new MeshBasicMaterial({ color: START_COLOR });
+  const pickMaterial = new MeshBasicMaterial({ color: PICK_COLOR });
+
+  const startPin = new Mesh(cone, startMaterial);
+  startPin.name = 'marker.start.pin';
+  startPin.renderOrder = RENDER_ORDER;
+  startPin.visible = false;
+
+  const ring = new RingGeometry(RING_INNER, RING_OUTER, 24);
+  ring.rotateX(-Math.PI / 2);
+  const startRing = new Mesh(ring, startMaterial);
+  startRing.name = 'marker.start.ring';
+  startRing.renderOrder = RENDER_ORDER;
+  startRing.visible = false;
+
+  const pickPin = new Mesh(cone, pickMaterial);
+  pickPin.name = 'marker.selected.pin';
+  pickPin.renderOrder = RENDER_ORDER;
+  pickPin.visible = false;
+
+  /**
+   * Контур выбранного помещения: две рамки, светлая изнутри и тёмная снаружи,
+   * одним мешем с цветами по вершинам. Буфер выделяется один раз: подмена
+   * атрибута оставляла бы прежний VBO в видеопамяти, а выбор меняется
+   * на каждый тап.
+   */
+  const RIM_VERTICES = 48;
+  const rimGeometry = new BufferGeometry();
+  const rimPositions = new Float32Array(RIM_VERTICES * 3);
+  const rimColors = new Float32Array(RIM_VERTICES * 3);
+  const rimPositionAttribute = new BufferAttribute(rimPositions, 3);
+  rimPositionAttribute.setUsage(DynamicDrawUsage);
+  const rimColorAttribute = new BufferAttribute(rimColors, 3);
+  rimColorAttribute.setUsage(DynamicDrawUsage);
+  rimGeometry.setAttribute('position', rimPositionAttribute);
+  rimGeometry.setAttribute('color', rimColorAttribute);
+  const rimMaterial = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide });
+  const rim = new Mesh(rimGeometry, rimMaterial);
+  rim.name = 'marker.selected.rim';
+  rim.renderOrder = RENDER_ORDER;
+  rim.frustumCulled = false;
+  rim.visible = false;
+
+  group.add(startPin, startRing, pickPin, rim);
+
+  /** Записать прямоугольную рамку в буфер контура, начиная с вершины `at`. */
+  function writeRim(
+    at: number,
+    cx: number,
+    cz: number,
+    y: number,
+    halfX: number,
+    halfZ: number,
+    thickness: number,
+    color: [number, number, number],
+  ): number {
+    const outerX = halfX;
+    const outerZ = halfZ;
+    const innerX = Math.max(halfX - thickness, 0.02);
+    const innerZ = Math.max(halfZ - thickness, 0.02);
+    /** Полоса рамки: прямоугольник между двумя парами границ. */
+    const strip = (x0: number, x1: number, z0: number, z1: number): void => {
+      const quad = [
+        [x0, z0],
+        [x1, z0],
+        [x1, z1],
+        [x0, z0],
+        [x1, z1],
+        [x0, z1],
+      ];
+      for (const [x, z] of quad) {
+        const base = at * 3;
+        rimPositions[base] = cx + (x ?? 0);
+        rimPositions[base + 1] = y;
+        rimPositions[base + 2] = cz + (z ?? 0);
+        rimColors[base] = color[0];
+        rimColors[base + 1] = color[1];
+        rimColors[base + 2] = color[2];
+        at += 1;
+      }
+    };
+    strip(-outerX, outerX, -outerZ, -innerZ);
+    strip(-outerX, outerX, innerZ, outerZ);
+    strip(-outerX, -innerX, -innerZ, innerZ);
+    strip(innerX, outerX, -innerZ, innerZ);
+    return at;
+  }
+
+  let startSpot: MarkSpot | undefined;
+  let pickSpot: MarkSpot | undefined;
+  let visibleLevel: number | null = null;
+  let clock = 0;
+
+  /** Основание метки: пол этажа плюс подъём выбранной плиты, если она поднята. */
+  function baseOf(spot: MarkSpot): number {
+    return elevationOf(spot.level) + (spot.raised === true ? SELECT_RAISE : 0);
+  }
+
+  function place(): void {
+    const shown = (spot: MarkSpot | undefined): boolean =>
+      Boolean(spot) && (visibleLevel === null || spot?.level === visibleLevel);
+
+    startPin.visible = shown(startSpot);
+    startRing.visible = startPin.visible;
+    if (startSpot) {
+      const y = baseOf(startSpot);
+      startPin.position.set(startSpot.x, y + PIN_CLEARANCE + PIN_HEIGHT / 2, startSpot.z);
+      startRing.position.set(startSpot.x, y + LIFT, startSpot.z);
+    }
+
+    // Булавка старта и метка выбора в одной точке — это два конуса друг
+    // в друге. Показывается булавка: она отвечает на более важный вопрос.
+    const together =
+      Boolean(startSpot && pickSpot) &&
+      Math.abs((startSpot?.x ?? 0) - (pickSpot?.x ?? 0)) < 0.2 &&
+      Math.abs((startSpot?.z ?? 0) - (pickSpot?.z ?? 0)) < 0.2 &&
+      startSpot?.level === pickSpot?.level;
+    pickPin.visible = shown(pickSpot) && !(together && startPin.visible);
+    if (pickSpot) {
+      const y = baseOf(pickSpot);
+      pickPin.position.set(pickSpot.x, y + PIN_CLEARANCE + PIN_HEIGHT / 2, pickSpot.z);
+    }
+
+    const hasPlate = Boolean(pickSpot?.width && pickSpot.depth);
+    rim.visible = shown(pickSpot) && hasPlate;
+    if (pickSpot && hasPlate) {
+      const y = baseOf(pickSpot) + LIFT;
+      const halfX = (pickSpot.width ?? 0) / 2;
+      const halfZ = (pickSpot.depth ?? 0) / 2;
+      // Светлая полоса идёт по самому краю плиты, тёмная — сразу за ней:
+      // какая из двух видна, решает ступень серого под контуром.
+      let written = writeRim(0, pickSpot.x, pickSpot.z, y, halfX, halfZ, RIM_WIDTH, rgb(RIM_LIGHT));
+      written = writeRim(
+        written,
+        pickSpot.x,
+        pickSpot.z,
+        y,
+        halfX + RIM_WIDTH,
+        halfZ + RIM_WIDTH,
+        RIM_WIDTH,
+        rgb(RIM_DARK),
+      );
+      rimGeometry.setDrawRange(0, written);
+      rimPositionAttribute.needsUpdate = true;
+      rimColorAttribute.needsUpdate = true;
+    }
+  }
+
+  return {
+    group,
+    setStart(spot): void {
+      startSpot = spot;
+      place();
+    },
+    setSelected(spot): void {
+      pickSpot = spot;
+      place();
+    },
+    setVisibleLevel(level): void {
+      if (visibleLevel === level) return;
+      visibleLevel = level;
+      place();
+    },
+    update(dt: number): void {
+      if (!startPin.visible && !pickPin.visible) return;
+      clock = (clock + dt) % BOB_PERIOD;
+      const bob = Math.sin((clock / BOB_PERIOD) * Math.PI * 2) * BOB;
+      if (startSpot && startPin.visible) {
+        startPin.position.y = baseOf(startSpot) + PIN_CLEARANCE + PIN_HEIGHT / 2 + bob;
+      }
+      if (pickSpot && pickPin.visible) {
+        pickPin.position.y = baseOf(pickSpot) + PIN_CLEARANCE + PIN_HEIGHT / 2 + bob;
+      }
+    },
+    dispose(): void {
+      startPin.removeFromParent();
+      startRing.removeFromParent();
+      pickPin.removeFromParent();
+      rim.removeFromParent();
+      cone.dispose();
+      ring.dispose();
+      rimGeometry.dispose();
+      startMaterial.dispose();
+      pickMaterial.dispose();
+      rimMaterial.dispose();
+      group.removeFromParent();
+      group.clear();
+    },
+  };
+}
+
+/** Цвет из шестнадцатеричного числа в тройку долей: цвета лежат по вершинам. */
+function rgb(hex: number): [number, number, number] {
+  return [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
+}

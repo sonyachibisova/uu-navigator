@@ -26,7 +26,7 @@
  *    задана в метрах пути, чтобы её можно было складывать с горизонтальными
  *    рёбрами: она выведена из высоты этажа и разная у лестницы и лифта.
  */
-import type { Bounds, FloorView, RoomView, VerticalView } from '@building/source';
+import type { Bounds, EntranceView, FloorView, RoomView, VerticalView } from '@building/source';
 import { joined } from '@data/schema';
 
 /** Во сколько раз этаж по лестнице «длиннее» своей высоты. */
@@ -50,7 +50,27 @@ const LIFT_FACTOR = 1.6;
 const LIFT_WAIT = 30;
 
 
-export type NodeKind = 'room' | 'door' | 'corridor' | 'vertical';
+export type NodeKind = 'room' | 'door' | 'corridor' | 'vertical' | 'entrance';
+
+/**
+ * Ссылка на произвольный узел графа: `graph:12`. Так интерфейс отмечает точку,
+ * у которой нет собственного идентификатора в данных, — кусок коридора или
+ * лестницу на конкретном этаже. Идентификаторы помещений и связей при этом
+ * остаются как были: ссылка нужна там, где имени нет.
+ */
+const NODE_REF = 'graph:';
+
+/** Собрать ссылку на узел по его индексу. */
+export function nodeRef(index: number): string {
+  return `${NODE_REF}${index}`;
+}
+
+/** Разобрать ссылку на узел; `undefined` — это не ссылка. */
+function parseNodeRef(id: string): number | undefined {
+  if (!id.startsWith(NODE_REF)) return undefined;
+  const index = Number.parseInt(id.slice(NODE_REF.length), 10);
+  return Number.isInteger(index) && index >= 0 ? index : undefined;
+}
 
 export interface GraphNode {
   kind: NodeKind;
@@ -82,6 +102,21 @@ export interface GraphEdge {
    * сказать об этом человеку, а не выдавать за гарантию.
    */
   unconfirmed?: boolean;
+  /**
+   * Длина ребра посчитана по прямой, потому что планировки этого места нет
+   * (вестибюль первого этажа). Указание по такому ребру обязано сказать
+   * словами, что расстояние приблизительное, а не называть точную цифру.
+   */
+  approximate?: boolean;
+}
+
+/** Где стоит точка маршрута: как её назвать человеку и куда вести камеру. */
+export interface GraphPlace {
+  kind: NodeKind;
+  name: string;
+  level: number;
+  x: number;
+  z: number;
 }
 
 export interface RouteGraph {
@@ -94,11 +129,23 @@ export interface RouteGraph {
   /** Все узлы связей: по ним интерфейс предлагает «ближайшую лестницу». */
   verticalIds: () => string[];
   /**
-   * Узел по идентификатору помещения или связи: концом маршрута может быть
-   * и лестница. Человек в холле не знает номера помещения, из которого
-   * выходит, зато видит лестницу, у которой стоит.
+   * Узел по идентификатору помещения, связи, входа или по ссылке `graph:N`:
+   * концом маршрута может быть и лестница, и кусок коридора. Человек в холле
+   * не знает номера помещения, из которого выходит, зато видит лестницу,
+   * у которой стоит.
    */
   anchorNode: (id: string) => number | undefined;
+  /**
+   * Ближайший узел, к которому можно привязать произвольную точку плана:
+   * коридор, лестница, лифт, вход. Двери и центры помещений пропускаются —
+   * по помещению попадают его плитой, а дверь как место человеку не назвать.
+   * `limit` — предельное расстояние в метрах: дальше него точка считается
+   * промахом, иначе тап по пустому месту выбирал бы что-нибудь на другом
+   * конце этажа.
+   */
+  nearestNode: (level: number, x: number, z: number, limit: number) => number | undefined;
+  /** Как назвать точку маршрута и где она лежит. */
+  placeOf: (id: string) => GraphPlace | undefined;
 }
 
 interface Point {
@@ -184,7 +231,20 @@ interface CorridorLine {
   marks: { index: number; t: number }[];
 }
 
-export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
+/** Что ещё пришивается к графу, кроме этажей. */
+export interface RouteGraphOptions {
+  /**
+   * Вход в здание. Планировки вестибюля нет ни у одного здания на старте,
+   * поэтому вход пришивается к ближайшей лестнице и ближайшему лифту своего
+   * этажа по прямой, а рёбра помечаются приблизительными.
+   */
+  entrance?: EntranceView;
+}
+
+export function buildRouteGraph(
+  floors: readonly FloorView[],
+  options: RouteGraphOptions = {},
+): RouteGraph {
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[][] = [];
   const roomIndex = new Map<string, number>();
@@ -201,12 +261,20 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     return nodes.length - 1;
   }
 
-  function link(from: number, to: number, cost: number, stairs = false, unconfirmed = false): void {
+  function link(
+    from: number,
+    to: number,
+    cost: number,
+    stairs = false,
+    unconfirmed = false,
+    approximate = false,
+  ): void {
     if (from === to) return;
     const value = Math.max(cost, 0.01);
     const edge: Omit<GraphEdge, 'to'> = { cost: value };
     if (stairs) edge.stairs = true;
     if (unconfirmed) edge.unconfirmed = true;
+    if (approximate) edge.approximate = true;
     edges[from]?.push({ ...edge, to });
     edges[to]?.push({ ...edge, to: from });
   }
@@ -412,6 +480,46 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     }
   }
 
+  /**
+   * Этаж входа без планировки. Вестибюль не размечен — ни коридоров, ни
+   * дверей, — но стволы лестниц и лифтов в данных доходят до земли, и без
+   * их узлов вход не к чему пришить. Узлы ставятся только на этаже входа:
+   * на прочих этажах без планировки к ним всё равно не подойти, а лишний
+   * пересадочный узел прибавлял бы ожидание кабины на каждом ярусе.
+   */
+  const entranceLevel = options.entrance?.level;
+  if (entranceLevel !== undefined) {
+    const floor = floors.find((item) => item.level === entranceLevel);
+    if (floor && !floor.layoutKnown) {
+      for (const linkView of floor.vertical) {
+        const point = centerOf(linkView.bounds);
+        const nodeIndex = addNode({
+          kind: 'vertical',
+          verticalKind: linkView.kind,
+          level: floor.level,
+          x: point.x,
+          z: point.z,
+          ownerId: linkView.id,
+          ownerName: linkView.name,
+        });
+        verticalIndex.set(`${linkView.id}@${floor.level}`, nodeIndex);
+        const seen = verticalSeen.get(linkView.id);
+        if (seen) {
+          seen.levels.push(floor.level);
+          seen.accessible = seen.accessible && linkView.accessible === true;
+          seen.confirmed = seen.confirmed && linkView.accessibilityConfirmed === true;
+        } else {
+          verticalSeen.set(linkView.id, {
+            kind: linkView.kind,
+            accessible: linkView.accessible === true,
+            confirmed: linkView.accessibilityConfirmed === true,
+            levels: [floor.level],
+          });
+        }
+      }
+    }
+  }
+
   // Межэтажные рёбра: одна и та же связь на соседних своих этажах.
   const heights = new Map<number, number>();
   const elevations = new Map<number, number>();
@@ -460,18 +568,88 @@ export function buildRouteGraph(floors: readonly FloorView[]): RouteGraph {
     }
   }
 
+  /**
+   * Вход в здание. Узел ставится ровно в дверь, а рёбра идут к ближайшей
+   * лестнице и к ближайшему лифту своего этажа — по прямой, потому что
+   * планировки вестибюля нет. Это честнее, чем не иметь входа вовсе:
+   * маршрут строится, а приблизительность первого шага говорится словами.
+   *
+   * Ближайшие берутся по одному на вид связи: только лестница увела бы
+   * человека с коляской на ступени, только лифт — заставил бы ждать кабину
+   * ради одного этажа.
+   */
+  let entranceNode: number | undefined;
+  const entrance = options.entrance;
+  if (entrance) {
+    const point = { x: entrance.x, z: entrance.z };
+    entranceNode = addNode({
+      kind: 'entrance',
+      level: entrance.level,
+      x: entrance.x,
+      z: entrance.z,
+      ownerId: entrance.id,
+      ownerName: entrance.name,
+    });
+    const nearestByKind = new Map<VerticalView['kind'], { index: number; gap: number }>();
+    for (const index of verticalIndex.values()) {
+      const node = nodes[index];
+      if (!node || node.level !== entrance.level || !node.verticalKind) continue;
+      const gap = distance(point, node);
+      const best = nearestByKind.get(node.verticalKind);
+      if (!best || gap < best.gap) nearestByKind.set(node.verticalKind, { index, gap });
+    }
+    for (const best of nearestByKind.values()) {
+      link(entranceNode, best.index, best.gap, false, false, true);
+    }
+  }
+
+  /** Узел по идентификатору места или по ссылке `graph:N`. */
+  function resolve(id: string): number | undefined {
+    const direct = parseNodeRef(id);
+    if (direct !== undefined) return direct < nodes.length ? direct : undefined;
+    const room = roomIndex.get(id);
+    if (room !== undefined) return room;
+    if (entrance && id === entrance.id) return entranceNode;
+    const seen = verticalSeen.get(id);
+    if (!seen) return undefined;
+    const lowest = [...seen.levels].sort((one, two) => one - two)[0];
+    return lowest === undefined ? undefined : verticalIndex.get(`${id}@${lowest}`);
+  }
+
   return {
     nodes,
     edges,
     roomNode: (id) => roomIndex.get(id),
     verticalNode: (id, level) => verticalIndex.get(`${id}@${level}`),
-    anchorNode(id) {
-      const room = roomIndex.get(id);
-      if (room !== undefined) return room;
-      const seen = verticalSeen.get(id);
-      if (!seen) return undefined;
-      const lowest = [...seen.levels].sort((one, two) => one - two)[0];
-      return lowest === undefined ? undefined : verticalIndex.get(`${id}@${lowest}`);
+    anchorNode: resolve,
+    nearestNode(level, x, z, limit) {
+      let best: number | undefined;
+      let bestGap = limit;
+      for (let index = 0; index < nodes.length; index += 1) {
+        const node = nodes[index];
+        if (!node || node.level !== level) continue;
+        // Дверь и центр помещения местом не называются: по помещению попадают
+        // его плитой, а «дверь такая-то» человеку ничего не говорит.
+        if (node.kind === 'door' || node.kind === 'room') continue;
+        const gap = Math.hypot(node.x - x, node.z - z);
+        if (gap >= bestGap) continue;
+        bestGap = gap;
+        best = index;
+      }
+      return best;
+    },
+    placeOf(id) {
+      const index = resolve(id);
+      if (index === undefined) return undefined;
+      const node = nodes[index];
+      if (!node) return undefined;
+      return {
+        kind: node.kind,
+        name: node.kind === 'corridor' ? (node.ownerName ?? 'коридор') : node.ownerName,
+        level: node.level,
+        x: node.x,
+        z: node.z,
+      };
     },
     verticalIds: () => [...verticalSeen.keys()],
   };

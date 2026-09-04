@@ -16,8 +16,9 @@ import {
   RepeatWrapping,
   SRGBColorSpace,
 } from 'three';
-import type { Material, Texture } from 'three';
+import type { Material, Texture, WebGLProgramParametersWithUniforms } from 'three';
 import type { RoomPurpose, SurfaceKey } from '@building/source';
+import { LOOK } from '@core/look';
 
 /** Текстуры генерируются один раз на приложение (иначе они пересоздаются на каждый меш). */
 let brickTexture: CanvasTexture | undefined;
@@ -103,11 +104,153 @@ const PURPOSE_COLOR: Record<RoomPurpose, number> = {
   wc: 0x6e9aaa,
   storage: 0xadaca3,
   tech: 0xadaca3,
-};export interface Palette {
+};
+/**
+ * Серая шкала, вариант А — четыре ступени.
+ *
+ * Ступени разведены по светлоте, а не по оттенку: у нейтральных серых разница
+ * светлоты и есть весь контраст целиком. Назначения, которые в данных нигде
+ * не стоят стена в стену, делят одну ступень — разводить их не за чем.
+ * Минимальная разница светлоты у соседей — ΔL* 17; у цветной палитры худшая
+ * пара давала 10, то есть шкала не ухудшает разборчивость, а улучшает её.
+ *
+ * Назначения, которых в данных здания нет (лекторий, коворкинг, вестибюль,
+ * кафе, магазин), поставлены на ступень по роду занятия: как только они
+ * появятся в данных, ступень проверяется заново перебором по соседям.
+ */
+const GREY_A: Record<RoomPurpose, number> = {
+  // L* 34
+  studio: 0x505050,
+  library: 0x505050,
+  gallery: 0x505050,
+  cafe: 0x505050,
+  // L* 51
+  class: 0x797979,
+  office: 0x797979,
+  tech: 0x797979,
+  admin: 0x797979,
+  lecture: 0x797979,
+  // L* 68
+  lab: 0xa6a6a6,
+  wc: 0xa6a6a6,
+  workshop: 0xa6a6a6,
+  cowork: 0xa6a6a6,
+  shop: 0xa6a6a6,
+  // L* 85
+  storage: 0xd4d4d4,
+  lobby: 0xd4d4d4,
+};
+
+/**
+ * Серая шкала, вариант Б — свой оттенок каждому назначению.
+ *
+ * Одиннадцать серых, собранных в те же четыре ступени по три-четыре близких
+ * значения: внутри ступени разница ΔL* 1–2 (различима, когда плиты рядом),
+ * между ступенями — те же 17. Плюс варианта в том, что легенда однозначна;
+ * минус — соседние оттенки одной ступени сами по себе почти не различаются.
+ */
+const GREY_B: Record<RoomPurpose, number> = {
+  studio: 0x505050,
+  library: 0x525252,
+  gallery: 0x555555,
+  cafe: 0x575757,
+  class: 0x797979,
+  tech: 0x7c7c7c,
+  admin: 0x7f7f7f,
+  lecture: 0x818181,
+  lab: 0xa6a6a6,
+  wc: 0xa8a8a8,
+  workshop: 0xababab,
+  cowork: 0xaeaeae,
+  shop: 0xb0b0b0,
+  office: 0xd4d4d4,
+  storage: 0xd7d7d7,
+  lobby: 0xdadada,
+};
+
+/** Действующий набор цветов плит — по выбору облика. */
+function plateColors(): Record<RoomPurpose, number> {
+  if (LOOK.floorPalette === 'greyA') return GREY_A;
+  if (LOOK.floorPalette === 'greyB') return GREY_B;
+  return PURPOSE_COLOR;
+}
+
+/**
+ * Разделительная линия между плитами, метры.
+ *
+ * Две плиты одного назначения стена в стену сливаются в одно пятно — на серой
+ * шкале это видно резче, чем на цветной, потому что оттенок больше не выдаёт
+ * границу. Линия рисуется по краю самой плиты и ничего не стоит: ни меша,
+ * ни треугольника, ни draw call — только несколько строк во фрагментном шейдере.
+ */
+const PLATE_LINE_WIDTH = 0.1;
+/** Насколько кромка темнее плиты. Ноль — линии нет. */
+const PLATE_LINE_DEPTH = 0.55;
+/** Цвет, к которому уводится кромка: почти чёрный, одинаково работает на всех ступенях. */
+const PLATE_LINE_COLOR = { r: 0.09, g: 0.1, b: 0.11 };
+
+/**
+ * Материал плиты помещения с разделительной кромкой.
+ *
+ * Подкласс, а не `onBeforeCompile` на готовом инстансе: `FadeRegistry`
+ * клонирует материал при регистрации, а `Material.clone()` не переносит
+ * собственные свойства объекта — метод же живёт в прототипе и клонирование
+ * переживает. Тот же приём, что у подписей.
+ *
+ * Размер плиты берётся из матрицы экземпляра, а не из отдельного атрибута:
+ * геометрия у плит общая (unit-куб на всё здание), и класть в неё
+ * поэкземплярные данные нельзя — её делят с оболочкой и перегородками.
+ */
+class PlateMaterial extends MeshLambertMaterial {
+  override onBeforeCompile(shader: WebGLProgramParametersWithUniforms): void {
+    const width = LOOK.floorPalette === 'color' ? 0 : PLATE_LINE_WIDTH;
+    if (width <= 0) return;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPlateEdge;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+// Расстояние от точки до ближайшего края плиты, в метрах. Габарит плиты —
+// длина базисных векторов матрицы экземпляра: unit-куб масштабирован ею.
+vec2 plateSize = vec2( 1.0 );
+#ifdef USE_INSTANCING
+  plateSize = vec2( length( instanceMatrix[ 0 ].xyz ), length( instanceMatrix[ 2 ].xyz ) );
+#endif
+vPlateEdge = ( vec2( 0.5 ) - abs( position.xz ) ) * plateSize;`,
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec2 vPlateEdge;')
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+{
+  float edgeDistance = min( vPlateEdge.x, vPlateEdge.y );
+  float onLine = 1.0 - smoothstep( ${(width * 0.55).toFixed(3)}, ${width.toFixed(3)}, edgeDistance );
+  diffuseColor.rgb = mix(
+    diffuseColor.rgb,
+    vec3( ${PLATE_LINE_COLOR.r}, ${PLATE_LINE_COLOR.g}, ${PLATE_LINE_COLOR.b} ),
+    onLine * ${PLATE_LINE_DEPTH}
+  );
+}`,
+      );
+  }
+
+  override customProgramCacheKey(): string {
+    return `plate-divider-${LOOK.floorPalette}`;
+  }
+}
+
+export interface Palette {
   surface: (key: SurfaceKey) => Material;
   /** Базовый материал кликабельных плит: цвет приходит per-instance. */
   plate: Material;
   purposeColor: (purpose: RoomPurpose) => Color;
+  /**
+   * Цвет поверхности строкой `#rrggbb`. Нужен подписям: в варианте без плашки
+   * цвет цифры считается от того, что под ней, а под подписью лестницы лежит
+   * не плита помещения, а сама лестница.
+   */
+  surfaceHex: (key: SurfaceKey) => string;
   dispose: () => void;
 }
 
@@ -145,18 +288,24 @@ export function createPalette(): Palette {
   };
   for (const [key, material] of Object.entries(surfaces)) material.name = `surface.${key}`;
 
-  const plate = new MeshLambertMaterial({ color: 0xffffff });
+  const plate = new PlateMaterial({ color: 0xffffff });
   plate.name = 'surface.plate';
 
   const colorCache = new Map<RoomPurpose, Color>();
 
+  const FALLBACK_HEX = '#cccccc';
+
   return {
     surface: (key) => surfaces[key],
     plate,
+    surfaceHex(key) {
+      const material = surfaces[key] as { color?: Color };
+      return material.color ? `#${material.color.getHexString()}` : FALLBACK_HEX;
+    },
     purposeColor(purpose) {
       let color = colorCache.get(purpose);
       if (!color) {
-        color = new Color(PURPOSE_COLOR[purpose] ?? 0xcccccc);
+        color = new Color(plateColors()[purpose] ?? 0xcccccc);
         colorCache.set(purpose, color);
       }
       return color;
@@ -178,7 +327,7 @@ export function disposeSharedTextures(): void {
 
 /** Цвет назначения в виде CSS-строки — для легенды интерфейса. */
 export function purposeCss(purpose: RoomPurpose): string {
-  return `#${(PURPOSE_COLOR[purpose] ?? 0xcccccc).toString(16).padStart(6, '0')}`;
+  return `#${(plateColors()[purpose] ?? 0xcccccc).toString(16).padStart(6, '0')}`;
 }
 
 /** Цвета вертикальных связей в легенде. */

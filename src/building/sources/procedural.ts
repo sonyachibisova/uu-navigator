@@ -16,12 +16,13 @@ import type { Building, Envelope, Floor } from '@data/schema';
 import type {
   BuildingPassport,
   BuildingSource,
+  EntranceView,
   FloorView,
   RoofView,
   ShellBand,
 } from '@building/source';
 import { DEFAULT_ENVELOPE_PROFILE, type EnvelopeProfile } from '@building/sources/envelope-profile';
-import { buildBands, buildRoof } from '@building/sources/envelope';
+import { buildBands, buildEntrance, buildRoof } from '@building/sources/envelope';
 import { buildFloorView } from '@building/sources/interior';
 
 import buildingRaw from '../../../data/building.json';
@@ -96,6 +97,8 @@ export class ProceduralSource implements BuildingSource {
   private bandsCache: ShellBand[] | undefined;
   private roofCache: RoofView | undefined;
   private floorsCache: FloorView[] | undefined;
+  private entranceCache: EntranceView | undefined;
+  private entranceRead = false;
 
   constructor() {
     const issues: string[] = [];
@@ -135,5 +138,13 @@ export class ProceduralSource implements BuildingSource {
       buildFloorView(floor, this.passport.footprint, this.passport.floorHeight),
     );
     return this.floorsCache;
+  }
+
+  entrance(): EntranceView | undefined {
+    if (!this.entranceRead) {
+      this.entranceRead = true;
+      this.entranceCache = buildEntrance(this.passport, this.profile);
+    }
+    return this.entranceCache;
   }
 }

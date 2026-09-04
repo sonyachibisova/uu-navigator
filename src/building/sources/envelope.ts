@@ -9,6 +9,7 @@
  */
 import type {
   BuildingPassport,
+  EntranceView,
   Envelope,
   Face,
   Part,
@@ -656,6 +657,32 @@ function signs(
     });
   }
   return result;
+}
+
+/**
+ * Вход в здание как точка плана: середина проёма на той грани, где он стоит.
+ *
+ * Считается по тем же числам, из которых строится сама входная группа
+ * (`entranceGroup` выше), поэтому узел маршрута заведомо попадает в дверь,
+ * а не рядом с ней. Здания без входной группы в профиле возвращают
+ * `undefined` — выдумывать вход нельзя.
+ */
+export function buildEntrance(
+  passport: BuildingPassport,
+  profile: EnvelopeProfile,
+): EntranceView | undefined {
+  const entrance = profile.entrance;
+  if (!entrance) return undefined;
+  const frame = frameOf(passport);
+  return {
+    id: 'entrance-main',
+    name: 'Главный вход',
+    level: 1,
+    x: frame.cx + entrance.center * frame.width,
+    z: frame.z1,
+    width: entrance.width,
+    side: 'south',
+  };
 }
 
 /** Оболочка по кольцам этажей. */

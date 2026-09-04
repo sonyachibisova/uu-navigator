@@ -10,7 +10,7 @@
  * плитам южного ряда идёт сквозь южную стену выбранного кольца: без проверки
  * курсор стоит на кирпичной стене, а выбирается помещение за ней.
  */
-import { Raycaster, Vector2 } from 'three';
+import { Plane, Raycaster, Vector2, Vector3 } from 'three';
 import type { Camera, Intersection, Material, Object3D } from 'three';
 import type { PickLayer } from '@building/building';
 import type { RoomView } from '@building/source';
@@ -42,6 +42,9 @@ export class RoomPicker {
   private readonly pointer = new Vector2();
   /** Приёмник пересечений: один на весь срок жизни, чтобы не плодить массивы. */
   private readonly hits: Intersection[] = [];
+  /** Горизонтальная плоскость этажа и точка попадания в неё: без аллокаций в кадре. */
+  private readonly plane = new Plane(new Vector3(0, 1, 0), 0);
+  private readonly hitPoint = new Vector3();
 
   /**
    * Найти помещение под точкой экрана.
@@ -82,6 +85,29 @@ export class RoomPicker {
     if (!room) return null;
     if (this.blocked(distance, occluders)) return null;
     return { room, instanceId };
+  }
+
+  /**
+   * Куда луч из точки экрана попадает в пол этажа. Нужно там, где под пальцем
+   * нет плиты помещения: коридор, площадка лестницы, место у лифта. Дальше
+   * точка привязывается к ближайшему узлу графа — булавка рисуется там,
+   * откуда действительно можно идти, а не там, куда попал палец.
+   */
+  pickFloor(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    camera: Camera,
+    elevation: number,
+  ): { x: number; z: number } | null {
+    if (width <= 0 || height <= 0) return null;
+    this.pointer.set((x / width) * 2 - 1, -(y / height) * 2 + 1);
+    this.raycaster.setFromCamera(this.pointer, camera);
+    this.plane.constant = -elevation;
+    const hit = this.raycaster.ray.intersectPlane(this.plane, this.hitPoint);
+    if (!hit) return null;
+    return { x: hit.x, z: hit.z };
   }
 
   /** Есть ли непрозрачная поверхность оболочки ближе, чем найденная плита. */

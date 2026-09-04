@@ -9,20 +9,112 @@
  * Все расстояния — доли габарита здания, снятые с прототипа.
  */
 import {
+  CanvasTexture,
   Color,
   DirectionalLight,
   Fog,
   Group,
   HemisphereLight,
+  LinearFilter,
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  SRGBColorSpace,
 } from 'three';
-import type { Material, Scene, WebGLRenderer } from 'three';
+import type { Material, Scene, Texture, WebGLRenderer } from 'three';
 import type { CameraFrame } from '@core/camera';
 import { isMobileLike } from '@core/renderer';
+import { LOOK } from '@core/look';
+import type { BackdropKind } from '@core/look';
 
-const SKY = 0xbfd9e8;
+/**
+ * Облик подложки: фон, туман, земля, тротуар и свет.
+ *
+ * Небо и олива были остатком «уличной» сцены и спорили с тёмным стеклом
+ * интерфейса: панели тёмные, а модель стояла в голубом дне. Все три варианта
+ * отвечают одному правилу — фон не участвует в разговоре, он подложка,
+ * на которой читается здание и лаймовая линия пути.
+ */
+interface Backdrop {
+  /** Сплошной цвет фона или вертикальный градиент: [верх, низ]. */
+  sky: number | readonly [number, number];
+  fog: number;
+  ground: number;
+  walk: number;
+  hemiSky: number;
+  hemiGround: number;
+  hemiIntensity: number;
+  sunColor: number;
+  sunIntensity: number;
+}
+
+const BACKDROPS: Record<BackdropKind, Backdrop> = {
+  // 1 «Графит»: ровный тёмный сине-серый. Здание на нём читается силуэтом,
+  // лайм пути горит, панели интерфейса перестают быть чужими на картинке.
+  graphite: {
+    sky: 0x15191d,
+    fog: 0x15191d,
+    ground: 0x212629,
+    walk: 0x2b3135,
+    hemiSky: 0xa8bccb,
+    hemiGround: 0x14181c,
+    hemiIntensity: 0.8,
+    sunColor: 0xe3ecf5,
+    sunIntensity: 1.45,
+  },
+  // 2 «Сумерки»: вертикальный градиент от почти чёрного верха к синему низу,
+  // солнце низкое и тёплое. Самый «вечерний» вариант, здание подсвечено сбоку.
+  dusk: {
+    sky: [0x0b0f14, 0x2d3b47],
+    fog: 0x1d262e,
+    ground: 0x181d22,
+    walk: 0x232b32,
+    hemiSky: 0x7f9cb5,
+    hemiGround: 0x111418,
+    hemiIntensity: 0.75,
+    sunColor: 0xffd9b0,
+    sunIntensity: 1.35,
+  },
+  // 3 «Бумага»: светлая нейтральная подложка без неба и без оливы —
+  // макет на столе. Здание светлое, тёмные панели интерфейса контрастны.
+  paper: {
+    sky: 0xe7e6e1,
+    fog: 0xe7e6e1,
+    ground: 0xd3d2cc,
+    walk: 0xdddcd6,
+    hemiSky: 0xffffff,
+    hemiGround: 0x9c9a92,
+    hemiIntensity: 0.95,
+    sunColor: 0xfff4e2,
+    sunIntensity: 1.5,
+  },
+};
+
+/**
+ * Вертикальный градиент фона одной узкой текстурой. Полоса в четыре пикселя
+ * шириной: рендерер растягивает фон на весь кадр, и ширина ни на что
+ * не влияет, а память экономит.
+ */
+function makeSkyGradient(top: number, bottom: number): CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = 4;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const gradient = ctx.createLinearGradient(0, 0, 0, 256);
+    gradient.addColorStop(0, `#${top.toString(16).padStart(6, '0')}`);
+    gradient.addColorStop(1, `#${bottom.toString(16).padStart(6, '0')}`);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 4, 256);
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.generateMipmaps = false;
+  texture.minFilter = LinearFilter;
+  texture.magFilter = LinearFilter;
+  return texture;
+}
+
 const FOG_NEAR = 5.68;
 const FOG_FAR = 12.98;
 const GROUND_SIZE = 12.2;
@@ -59,18 +151,25 @@ export function createEnvironment(
   frame: SiteFrame,
   renderer: WebGLRenderer,
 ): EnvironmentHandle {
-  scene.background = new Color(SKY);
-  scene.fog = new Fog(SKY, frame.radius * FOG_NEAR, frame.radius * FOG_FAR);
+  const backdrop = BACKDROPS[LOOK.backdrop];
+  let skyTexture: Texture | undefined;
+  if (typeof backdrop.sky === 'number') {
+    scene.background = new Color(backdrop.sky);
+  } else {
+    skyTexture = makeSkyGradient(backdrop.sky[0], backdrop.sky[1]);
+    scene.background = skyTexture;
+  }
+  scene.fog = new Fog(backdrop.fog, frame.radius * FOG_NEAR, frame.radius * FOG_FAR);
 
   const group = new Group();
   group.name = 'environment';
   scene.add(group);
 
-  const hemi = new HemisphereLight(0xdfefff, 0x5a5348, 0.95);
+  const hemi = new HemisphereLight(backdrop.hemiSky, backdrop.hemiGround, backdrop.hemiIntensity);
   hemi.name = 'environment.light.sky';
   group.add(hemi);
 
-  const sun = new DirectionalLight(0xfff2dd, 1.5);
+  const sun = new DirectionalLight(backdrop.sunColor, backdrop.sunIntensity);
   sun.name = 'environment.light.sun';
   sun.position.set(
     frame.center.x + frame.radius * SUN_DIR.x,
@@ -95,7 +194,7 @@ export function createEnvironment(
   group.add(sun.target);
 
   const groundGeometry = new PlaneGeometry(frame.radius * GROUND_SIZE, frame.radius * GROUND_SIZE);
-  const groundMaterial = new MeshStandardMaterial({ color: 0x8f8f88, roughness: 1 });
+  const groundMaterial = new MeshStandardMaterial({ color: backdrop.ground, roughness: 1 });
   const ground = new Mesh(groundGeometry, groundMaterial);
   ground.name = 'environment.ground';
   ground.rotation.x = -Math.PI / 2;
@@ -104,7 +203,7 @@ export function createEnvironment(
 
   const { x0, x1, z1 } = frame.footprint;
   const walkGeometry = new PlaneGeometry(x1 - x0 + WALK_MARGIN, WALK_WIDTH);
-  const walkMaterial = new MeshStandardMaterial({ color: 0xb5b2aa, roughness: 1 });
+  const walkMaterial = new MeshStandardMaterial({ color: backdrop.walk, roughness: 1 });
   const walk = new Mesh(walkGeometry, walkMaterial);
   walk.name = 'environment.walk';
   walk.rotation.x = -Math.PI / 2;
@@ -157,6 +256,7 @@ export function createEnvironment(
       groundMaterial.dispose();
       walkGeometry.dispose();
       walkMaterial.dispose();
+      skyTexture?.dispose();
       scene.remove(group);
       scene.fog = null;
       scene.background = null;

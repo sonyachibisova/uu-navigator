@@ -21,6 +21,7 @@ import {
   MeshBasicMaterial,
 } from 'three';
 import type { Route } from '@routing/path';
+import { LOOK } from '@core/look';
 
 /** Ширина ленты, метры: заметно, но не перекрывает подписи помещений. */
 const WIDTH = 0.7;
@@ -45,16 +46,28 @@ const RENDER_ORDER = 2;
 /**
  * Цвет ленты — тот же кислотный лайм, что у главных кнопок и выбранного этажа:
  * в интерфейсе он значит «путь» и больше ничего, а в интерьере таких тонов нет.
- * Читается лента не яркостью цвета, а полосами: см. волну ниже.
  */
 const COLOR = 0xd8ff3e;
 /**
  * Длина волны и скорость бегущей подсветки: метры и метры в секунду.
- * Стрелки говорят, куда идти, стоя на месте; движение говорит то же самое
- * боковым зрением, и человеку не приходится вглядываться в ленту.
+ * Работают только в варианте «волна»; в «свечении» лента вдоль пути ровная.
  */
-const WAVE_LENGTH = 6;
-const WAVE_SPEED = 3.5;
+const WAVE_LENGTH = 7;
+const WAVE_SPEED = 3;
+/**
+ * Тёмная кромка ленты: с какой доли полуширины она начинается и во сколько раз
+ * там гасится цвет.
+ *
+ * Это замена прежним полосам поперёк ленты — той самой «полосочке». Полосы
+ * стояли не ради красоты: чистый лайм на светлом полу даёт около 1.2:1 и сам
+ * по себе исчезает, контраст держали тёмные провалы волны. Но провал во всю
+ * ширину ленты читается как штриховка, а не как неон. Кромка даёт тот же
+ * контраст к полу (6.5:1 к самой светлой ступени серого), не трогая сердцевину:
+ * лента остаётся сплошной лаймовой линией с тёмным контуром.
+ */
+const RIM_FROM = 0.74;
+const RIM_TO = 0.94;
+const RIM_DARKEN = 0.1;
 
 export interface RouteHandle {
   group: Group;
@@ -92,31 +105,44 @@ export function createRoute(elevationOf: FloorElevation): RouteHandle {
   // Материал ленты никем не клонируется — она не в `FadeRegistry`, — поэтому
   // здесь достаточно обычного `onBeforeCompile` с собственной униформой.
   const time = { value: 0 };
+  const moving = LOOK.routeLine === 'wave';
   material.onBeforeCompile = (shader) => {
     shader.uniforms['uTime'] = time;
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aDistance;\nvarying float vDistance;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDistance = aDistance;');
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute float aDistance;\nattribute float aSide;\nvarying float vDistance;\nvarying float vSide;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvDistance = aDistance;\nvSide = aSide;',
+      );
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
-        '#include <common>\nuniform float uTime;\nvarying float vDistance;',
+        '#include <common>\nuniform float uTime;\nvarying float vDistance;\nvarying float vSide;',
       )
       .replace(
         '#include <dithering_fragment>',
         `#include <dithering_fragment>
-// Бегущая волна вдоль пути: яркость, а не прозрачность, — прозрачная
-// лента на светлом полу теряется, а более яркая полоса видна всегда.
-float wave = 0.5 + 0.5 * sin( ( vDistance - uTime * ${WAVE_SPEED.toFixed(1)} ) * ${(6.2831853 / WAVE_LENGTH).toFixed(4)} );
-// Чистый лайм на светлом полу даёт контраст около 1.1:1 — сам по себе
-// он исчезает. Держат ленту тёмные промежутки между полосами: во впадине
-// волны множитель 0.38 даёт около 5:1 к самому светлому полу. Полностью
-// притушить ленту (0.20..0.55) было бы контрастнее, но тогда она перестаёт
-// быть лаймовой, а лайм в этом интерфейсе значит «путь».
-gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
+// Поперёк ленты, а не вдоль: сердцевина светится ровно, к краю цвет мягко
+// садится, у самого края идёт тёмная кромка. Она и держит контраст к полу.
+float acrossRibbon = abs( vSide );
+float core = 1.0 - 0.16 * smoothstep( 0.0, ${RIM_FROM.toFixed(2)}, acrossRibbon );
+float rim = smoothstep( ${RIM_FROM.toFixed(2)}, ${RIM_TO.toFixed(2)}, acrossRibbon );
+${
+  moving
+    ? `// Мягкая направленная волна: подсветка бежит в сторону движения.
+// Глубина небольшая (0.82..1.0) — это движение, а не штриховка.
+float phase = 0.5 + 0.5 * sin( ( vDistance - uTime * ${WAVE_SPEED.toFixed(1)} ) * ${(6.2831853 / WAVE_LENGTH).toFixed(4)} );
+core *= 0.82 + 0.18 * pow( phase, 3.0 );`
+    : '// Ровное свечение: вдоль пути лента одинаковая на всей длине.'
+}
+vec3 ribbon = gl_FragColor.rgb * core;
+gl_FragColor.rgb = mix( ribbon, ribbon * ${RIM_DARKEN.toFixed(2)}, rim );`,
       );
   };
-  material.customProgramCacheKey = () => 'route-ribbon-wave';
+  material.customProgramCacheKey = () => `route-ribbon-${LOOK.routeLine}`;
   // Один буфер на всё время жизни: новый `BufferAttribute` на каждую
   // пересборку оставлял бы прежний VBO в видеопамяти — рендерер удаляет
   // буферы только при разрушении геометрии, а маршрут пересобирается
@@ -138,6 +164,15 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
   const distanceAttribute = new BufferAttribute(distances, 1);
   distanceAttribute.setUsage(DynamicDrawUsage);
   geometry.setAttribute('aDistance', distanceAttribute);
+  /**
+   * Положение вершины поперёк ленты: −1 и +1 — края, 0 — ось. По нему
+   * рисуется неоновая сердцевина и тёмная кромка. Остриё стрелки лежит
+   * на оси, поэтому стрелка светится сердцевиной и кромкой не режется.
+   */
+  const sides = new Float32Array(CAPACITY);
+  const sideAttribute = new BufferAttribute(sides, 1);
+  sideAttribute.setUsage(DynamicDrawUsage);
+  geometry.setAttribute('aSide', sideAttribute);
 
   const mesh = new Mesh(geometry, material);
   mesh.name = 'route.ribbon';
@@ -158,6 +193,7 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
     // а честное построение стыка стоило бы вдвое больше кода.
     const positions: number[] = [];
     const along: number[] = [];
+    const across: number[] = [];
     for (const leg of legs) {
       const y = elevationOf(leg.level) + LIFT;
       // Стрелки расставляются по пройденному пути, а не по звеньям: иначе
@@ -188,6 +224,8 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
         const startAt = travelled;
         const endAt = travelled + length;
         along.push(startAt, startAt, endAt, startAt, endAt, endAt);
+        // a и e лежат на одном краю ленты, b и c — на другом.
+        across.push(1, -1, -1, 1, -1, 1);
 
         const ux = dx / length;
         const uz = dz / length;
@@ -211,6 +249,7 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
           );
           // Стрелка светится вместе с тем местом ленты, где стоит.
           along.push(nextArrow, nextArrow, nextArrow);
+          across.push(0, 0.6, -0.6);
           nextArrow += ARROW_STEP;
         }
         travelled += length;
@@ -226,8 +265,10 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
     const count = Math.min(positions.length / 3, CAPACITY);
     vertices.set(positions.slice(0, count * 3));
     distances.set(along.slice(0, count));
+    sides.set(across.slice(0, count));
     attribute.needsUpdate = true;
     distanceAttribute.needsUpdate = true;
+    sideAttribute.needsUpdate = true;
     // Габарит не считается: меш не отсекается по пирамиде видимости, и
     // проход по всем вершинам ради никем не читаемой сферы был бы лишним.
     geometry.setDrawRange(0, count);
@@ -239,7 +280,7 @@ gl_FragColor.rgb *= 0.38 + 0.62 * wave;`,
     update(dt: number): void {
       // Время не растёт бесконечно: волна периодична, и на длинном сеансе
       // большое число потеряло бы точность прямо в шейдере.
-      if (mesh.visible) time.value = (time.value + dt) % (WAVE_LENGTH / WAVE_SPEED);
+      if (mesh.visible && moving) time.value = (time.value + dt) % (WAVE_LENGTH / WAVE_SPEED);
     },
     show,
     dispose(): void {

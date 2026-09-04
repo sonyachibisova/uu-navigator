@@ -42,7 +42,7 @@ const SELECT_LIFT = 0.45;
  * этажа. Меньше метра с высоты птичьего полёта не читается вовсе: подъём
  * в треть метра на дистанции в сотню метров — это два пикселя.
  */
-const SELECT_RAISE = 1.2;
+export const SELECT_RAISE = 1.2;
 /** Непрозрачность приглушённого этажа. */
 const DIMMED = 0.25;
 /**
@@ -211,10 +211,23 @@ export function createFloors(
 
       for (const room of view.rooms) {
         roomIndex.set(room.id, room);
-        if (room.label) labelSpecs.push(room.label);
+        // Подписи достаётся цвет плиты, на которой она лежит: вариант без
+        // плашки считает от него цвет цифры. Палитру знает сцена, а не
+        // источник данных, поэтому поле заполняется здесь.
+        if (room.label) {
+          labelSpecs.push({
+            ...room.label,
+            underColor: `#${palette.purposeColor(room.type).getHexString()}`,
+          });
+        }
       }
       for (const link of view.vertical) {
-        if (link.label) labelSpecs.push(link.label);
+        if (link.label) {
+          labelSpecs.push({
+            ...link.label,
+            underColor: palette.surfaceHex(link.kind === 'lift' ? 'lift' : 'stair'),
+          });
+        }
         // Точка, к которой ведём камеру: подпись связи, а если её нет —
         // середина габарита на высоте роста над полом этажа.
         const focus = link.label?.position ?? {

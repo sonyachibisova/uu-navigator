@@ -76,7 +76,10 @@ const STYLE = `
 /* На телефоне нет наведения: отклик на касание — единственное подтверждение,
    что палец попал. */
 #ui-root button:active { filter: brightness(1.25); }
-#ui-root [hidden] { display: none; }
+/* Скрытие сильнее любой раскладки: у панелей ниже задан свой «display»
+   с более высокой специфичностью, и без «!important» спрятанный блок —
+   например, ходовая строка без маршрута — продолжал показываться. */
+#ui-root [hidden] { display: none !important; }
 
 /* Поиск. В начальном состоянии он не строка вверху, а лист снизу с вопросом:
    человек приходит с вопросом «где 4.09», и первое, что он видит, — вопрос
@@ -95,6 +98,9 @@ const STYLE = `
 #ui-root.start #ui-search .me.on { display: block; }
 #ui-search .chips button { height: 44px; padding: 0 14px; border: 0; border-radius: 22px;
   background: var(--glass-soft); color: var(--ink); font: 400 14px Univers, sans-serif; cursor: pointer; }
+/* «Все помещения» — не такая же подсказка, как остальные: она открывает весь
+   дом, а не одно назначение, и стоит первой строкой. */
+#ui-search .chips button.wide { flex: 1 0 100%; border: 1px solid var(--line); font-weight: 700; }
 #ui-search .field { pointer-events: auto; display: flex; align-items: center; gap: 8px;
   box-sizing: border-box; height: 52px; padding: 0 4px 0 14px; border-radius: 14px;
   border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
@@ -118,6 +124,10 @@ const STYLE = `
   cursor: pointer; }
 #ui-search .count { padding: 8px 14px; border-top: 1px solid rgba(255,255,255,.09);
   color: var(--ink-dim); font-size: 13px; }
+/* Заголовок этажа в каталоге: прилипает к верху, пока листаешь его помещения. */
+#ui-search .list .group { position: sticky; top: 0; z-index: 1; padding: 9px 14px;
+  background: rgba(20,22,25,.94); border-bottom: 1px solid rgba(255,255,255,.09);
+  color: var(--ink); font: 700 13px Univers, sans-serif; }
 #ui-search .list button:last-child { border-bottom: 0; }
 #ui-search .list button b { margin-right: 6px; color: var(--ink); }
 #ui-search .list button .where { display: block; color: var(--ink-dim); font-size: 13px; }
@@ -164,24 +174,41 @@ const STYLE = `
 #ui-card .close { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; border: 0;
   border-radius: 10px; background: none; color: var(--ink-dim); font: 400 20px/1 Univers, sans-serif;
   cursor: pointer; }
-/* Разворот свёрнутой полосы: тап по всей ширине шапки, а не по стрелке. */
-#ui-card .grip { position: absolute; top: 2px; right: 46px; width: 44px; height: 44px; border: 0;
+/* Язычок карточки. Тач-цель заметно больше стрелки: свернуть и развернуть
+   блок с шагами приходится на ходу, одной рукой, и промах по значку 15×15
+   означал, что человек остаётся с закрытым планом. */
+#ui-card .grip { position: absolute; top: 0; right: 44px; width: 60px; height: 48px; border: 0;
   border-radius: 10px; background: none; color: var(--ink-dim); font: 400 15px/1 Univers, sans-serif;
-  cursor: pointer; }
-#ui-card .title { padding-right: 92px; font-size: 15px; }
+  cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; }
+/* Полоска-язычок: она и говорит, что блок тянется. */
+#ui-card .grip i { display: block; width: 26px; height: 3px; border-radius: 2px;
+  background: rgba(241,242,239,.5); }
+#ui-card .title { padding-right: 112px; font-size: 15px; }
 #ui-card .title b { margin-right: 6px; font-size: 17px; color: var(--ink); }
-#ui-card .where { padding-right: 92px; color: var(--ink-dim); font-size: 13px; }
+#ui-card .where { padding-right: 112px; color: var(--ink-dim); font-size: 13px; }
+/* Почему главное действие не нажимается. Строка стоит под кнопками и живёт
+   ровно столько, сколько живёт причина. */
+#ui-card .why { margin-top: 8px; color: var(--ink-dim); font-size: 13px; line-height: 1.35; }
 #ui-card .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 #ui-card .actions button { height: 44px; padding: 0 16px; border: 0; border-radius: 12px;
   background: var(--accent); color: var(--accent-ink); font: 700 14px Univers, sans-serif; cursor: pointer; }
 #ui-card .actions button.ghost { background: var(--glass-soft); color: var(--ink); font-weight: 400; }
+/* Неактивное главное действие: видно, что кнопка есть и что она сейчас
+   не работает. Причина — строкой ниже, а не в подсказке при наведении. */
+#ui-card .actions button:disabled { cursor: default; }
+#ui-card .actions button.ghost:disabled { opacity: 1; background: rgba(216,255,62,.16);
+  color: var(--ink); }
+#ui-card .actions button:disabled:not(.ghost) { background: rgba(216,255,62,.28);
+  color: rgba(20,22,15,.66); }
 #ui-card .route { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 #ui-card .route .head { font-size: 13px; color: var(--ink-dim); }
 /* Предупреждение о неподтверждённой доступности: заметное, но не тревожное. */
 #ui-card .route .warn { margin-top: 8px; padding: 8px 10px; border-radius: 10px;
   background: rgba(216,255,62,.14); border: 1px solid rgba(216,255,62,.35);
   color: var(--ink); font-size: 13px; line-height: 1.35; }
-#ui-card .route .mode { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+#ui-card .route .mode { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+#ui-card .route .mode .note { color: var(--ink-dim); font-size: 13px; }
 #ui-card .route .mode button { height: 44px; padding: 0 14px; border: 0; border-radius: 12px;
   background: var(--glass-soft); color: var(--ink); font: 400 13px Univers, sans-serif; cursor: pointer; }
 #ui-card .route .mode button.on { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
@@ -196,18 +223,24 @@ const STYLE = `
 #ui-card .step button:disabled { opacity: .4; cursor: default; }
 #ui-card .step .text { flex: 1; min-width: 0; font-size: 15px; line-height: 1.35; }
 #ui-card .step .of { display: block; color: var(--ink-dim); font-size: 13px; }
+#ui-card .route .tools { display: flex; flex-wrap: wrap; gap: 4px; }
 #ui-card .route .all { margin-top: 8px; height: 44px; padding: 0 12px; border: 0; border-radius: 12px;
   background: none; color: var(--accent); font: 700 13px Univers, sans-serif; cursor: pointer; }
+/* Выход из дошедшего маршрута. Стоит на месте стрелки «вперёд», которой
+   на последнем шаге всё равно некуда вести. */
+#ui-card .step button.done { flex: 0 0 auto; padding: 0 14px; background: var(--accent);
+  color: var(--accent-ink); font: 700 14px Univers, sans-serif; }
 
 /* Свёрнутый вид на время ходьбы: остаются название цели и текущий шаг.
    Карточка занимает нижнюю пятую часть экрана, план виден. */
 #ui-card.compact { padding-bottom: 10px; max-height: 22vh; }
 #ui-card.compact .where,
+#ui-card.compact .why,
 #ui-card.compact .actions,
 #ui-card.compact .route .head,
 #ui-card.compact .route .warn,
 #ui-card.compact .route .mode,
-#ui-card.compact .route .all,
+#ui-card.compact .route .tools,
 #ui-card.compact .route ol { display: none; }
 #ui-card.compact .route { margin-top: 8px; padding-top: 8px; }
 #ui-card.compact .title { font-size: 14px; color: var(--ink-dim); }
@@ -282,12 +315,20 @@ const STYLE = `
 }
 `;
 
-export interface UiHandle {
+/** Что интерфейс должен знать о показанном маршруте, кроме него самого. */
+export interface RouteFacts {
+  /** Обе точки выбраны, а пути между ними нет. */
+  unreachable?: boolean;
   /**
-   * Показать посчитанный маршрут или убрать его. Считает его точка сборки.
-   * `unreachable` — обе точки выбраны, а пути между ними нет.
+   * У маршрута есть второй вариант: без лестниц там, где сейчас со ступенями,
+   * или наоборот. Только в этом случае предлагается выбор.
    */
-  showRoute: (route: Route | undefined, unreachable?: boolean) => void;
+  alternative?: boolean;
+}
+
+export interface UiHandle {
+  /** Показать посчитанный маршрут или убрать его. Считает его точка сборки. */
+  showRoute: (route: Route | undefined, facts?: RouteFacts) => void;
   /**
    * Сообщить, раскрыто ли здание. Кнопка «заглянуть внутрь» зовёт сделать
    * то, что уже сделано, если её не убрать: раскрытие идёт от близости
@@ -322,8 +363,13 @@ export interface UiActions {
   showRoom: (id: string) => void;
   /** Назначить конец маршрута: начало или цель. */
   setRouteEnd: (end: 'from' | 'to', id: string) => void;
-  /** Убрать маршрут целиком. */
-  clearRoute: () => void;
+  /**
+   * Маршрут пройден. Убирает и путь, и выбор, и возвращает камеру к общему
+   * виду: последний шаг обязан иметь выход, а не только крестик.
+   */
+  finishRoute: () => void;
+  /** Показать маршрут целиком: камера отъезжает и берёт в кадр весь путь. */
+  frameRoute: () => void;
   /** Переключить режим «без лестниц». */
   setStepFree: (value: boolean) => void;
   /**
@@ -331,6 +377,19 @@ export interface UiActions {
    * на ходу, и каждое должно показывать то место, о котором говорит.
    */
   showStep: (step: RouteStep) => void;
+  /**
+   * Как назвать место по идентификатору. Местом может быть не только
+   * помещение: лестница, лифт, вход, кусок коридора — у них нет карточки
+   * в данных, но человеку они называются так же.
+   */
+  placeInfo: (id: string) => PlaceInfo | undefined;
+}
+
+/** Строки карточки места: номер, название и где это. */
+export interface PlaceInfo {
+  number: string;
+  name: string;
+  where: string;
 }
 
 /**
@@ -493,6 +552,20 @@ export function createUi(
       });
     }
   }
+  // Вход ищется словом: человек, стоящий на улице, набирает «вход», а не
+  // номер помещения, — и это самая частая точка начала пути.
+  const entranceView = building.entrance;
+  if (entranceView) {
+    searchItems.push({
+      id: entranceView.id,
+      number: '',
+      name: entranceView.name,
+      where: `${entranceView.level} этаж, ${building.passport.shortName}`,
+      haystackNumber: '',
+      haystackName: normalize(entranceView.name),
+      haystackType: 'вход вход в здание',
+    });
+  }
   // Лестницы и лифты ищутся наравне с помещениями: «где лестница» — такой же
   // вопрос, как «где 4.09», и ответ на него человеку нужен чаще.
   for (const place of building.verticalPlaces()) {
@@ -641,6 +714,23 @@ export function createUi(
   // нет, подсказки просто не будет.
   const searchChips = document.createElement('div');
   searchChips.className = 'chips';
+  // Первая подсказка — не назначение, а весь дом. Три быстрых раздела
+  // покрывают девять помещений из полусотни, и человек, которому нужно
+  // десятое, до сих пор не мог просто посмотреть список.
+  const allRoomsChip = document.createElement('button');
+  allRoomsChip.type = 'button';
+  allRoomsChip.className = 'wide';
+  allRoomsChip.textContent = 'Все помещения';
+  allRoomsChip.addEventListener('click', () => {
+    if (catalogueOpen) {
+      closeSearch();
+      return;
+    }
+    searchInput.value = '';
+    searchClear.hidden = true;
+    renderCatalogue();
+  });
+  searchChips.appendChild(allRoomsChip);
   const CHIP_PURPOSES: RoomPurpose[] = ['library', 'cafe', 'wc', 'workshop'];
   for (const purpose of CHIP_PURPOSES) {
     const has = building.floors.some((floor) => floor.rooms.some((room) => room.type === purpose));
@@ -670,7 +760,12 @@ export function createUi(
   // Планировок нет ни у одного этажа — искать нечего, и поле только мешает.
   if (searchItems.length === 0) search.hidden = true;
 
+  /** Открыт ли сейчас каталог: тот же список, но собранный не поиском. */
+  let catalogueOpen = false;
+
   function closeSearch(): void {
+    catalogueOpen = false;
+    allRoomsChip.setAttribute('aria-expanded', 'false');
     if (!searchList.hidden) {
       searchList.hidden = true;
       searchList.replaceChildren();
@@ -688,6 +783,77 @@ export function createUi(
     // и оставить её открытой — значит показать его в щёлку.
     searchInput.blur();
     actions.showRoom(id);
+  }
+
+  /**
+   * Каталог: все помещения дома, сгруппированные по этажам, без ввода запроса.
+   *
+   * Три быстрые подсказки покрывают девять помещений из полусотни, и человеку,
+   * которому нужно десятое, до сих пор оставался только поиск по слову,
+   * которое он должен угадать. Этажи без планировки не пропускаются молча:
+   * пустое место в списке читается как «этажей нет», а они есть.
+   */
+  function renderCatalogue(): void {
+    dismissHint();
+    catalogueOpen = true;
+    allRoomsChip.setAttribute('aria-expanded', 'true');
+    searchList.replaceChildren();
+    hint.hidden = true;
+    let counted = 0;
+    for (const floor of building.floors) {
+      const group = document.createElement('div');
+      group.className = 'group';
+      group.textContent = floor.layoutKnown
+        ? `${floor.name} — ${floor.rooms.length} помещений`
+        : floor.name;
+      searchList.appendChild(group);
+      if (!floor.layoutKnown) {
+        // Вход — единственное, что про первый этаж известно точно, и он же
+        // самая нужная точка старта: человек приходит с улицы.
+        const entrance = building.entrance;
+        if (entrance && entrance.level === floor.level) {
+          searchList.appendChild(catalogueLine(entrance.id, '', entrance.name, 'вход в корпус'));
+        }
+        const note = document.createElement('div');
+        note.className = 'empty';
+        note.textContent = 'Планировка уточняется';
+        searchList.appendChild(note);
+        continue;
+      }
+      const rooms = [...floor.rooms].sort((one, two) =>
+        (one.planNumber ?? one.name).localeCompare(two.planNumber ?? two.name, 'ru'),
+      );
+      for (const room of rooms) {
+        counted += 1;
+        searchList.appendChild(
+          catalogueLine(room.id, room.planNumber ?? '', room.name, PURPOSE_LABEL[room.type] ?? ''),
+        );
+      }
+    }
+    const total = document.createElement('div');
+    total.className = 'count';
+    total.textContent = `Всего ${counted} помещений с известной планировкой`;
+    searchList.appendChild(total);
+    searchList.hidden = false;
+  }
+
+  /** Строка каталога: номер, название и назначение словами. */
+  function catalogueLine(id: string, number: string, name: string, purpose: string): HTMLElement {
+    const line = document.createElement('button');
+    line.type = 'button';
+    const title = document.createElement('span');
+    if (number) {
+      const tag = document.createElement('b');
+      tag.textContent = number;
+      title.appendChild(tag);
+    }
+    title.append(name);
+    const where = document.createElement('span');
+    where.className = 'where';
+    where.textContent = purpose;
+    line.append(title, where);
+    line.addEventListener('click', () => chooseRoom(id));
+    return line;
   }
 
   function renderSearch(): void {
@@ -776,12 +942,15 @@ export function createUi(
   cardGrip.type = 'button';
   cardGrip.className = 'grip';
   cardGrip.hidden = true;
-  cardGrip.textContent = '⌃';
+  const cardGripBar = document.createElement('i');
+  const cardGripArrow = document.createElement('span');
+  cardGripArrow.textContent = '⌃';
+  cardGrip.append(cardGripBar, cardGripArrow);
   cardGrip.setAttribute('aria-expanded', 'false');
   cardGrip.setAttribute('aria-label', 'Развернуть карточку маршрута');
   cardGrip.addEventListener('click', () => {
     const compact = card.classList.toggle('compact');
-    cardGrip.textContent = compact ? '⌃' : '⌄';
+    cardGripArrow.textContent = compact ? '⌃' : '⌄';
     cardGrip.setAttribute('aria-expanded', compact ? 'false' : 'true');
     cardGrip.setAttribute(
       'aria-label',
@@ -814,73 +983,45 @@ export function createUi(
   routeFromButton.setAttribute('aria-label', 'Отметить это место как начало пути');
   const routeToButton = document.createElement('button');
   routeToButton.type = 'button';
-  routeToButton.textContent = 'Провести меня';
-  routeToButton.setAttribute('aria-label', 'Провести меня к этому помещению');
-  const routeClearButton = document.createElement('button');
-  routeClearButton.type = 'button';
-  routeClearButton.className = 'ghost';
-  routeClearButton.textContent = 'Сбросить';
-  routeClearButton.hidden = true;
-  // Ссылка на помещение или на маршрут: преподаватель шлёт её студенту,
-  // и тот попадает сразу к цели. Тот же адрес, что печатается на наклейке.
-  const shareButton = document.createElement('button');
-  shareButton.type = 'button';
-  shareButton.className = 'ghost';
-  shareButton.textContent = 'Ссылка';
-  shareButton.setAttribute('aria-label', 'Скопировать ссылку на это место');
-  // Главное действие идёт первым и выглядит главным. Второе — «Я здесь» —
-  // нужно только тому, кто отмечает, откуда идёт.
-  cardActions.append(routeToButton, routeFromButton, routeClearButton, shareButton);
+  routeToButton.textContent = 'Дойти сюда';
+  routeToButton.setAttribute('aria-label', 'Построить маршрут к этому месту');
+  // Кнопок на карточке места ровно две. «Сбросить» не нужна: начало
+  // переносится тапом по другому месту и той же кнопкой «Я здесь». «Ссылка»
+  // ушла отдельно — механика наклеек живёт в адресе, а не в кнопке.
+  cardActions.append(routeFromButton, routeToButton);
 
-  /** Собрать адрес с текущими концами маршрута. */
-  function shareUrl(): string {
-    const state = store.state;
-    const url = new URL(window.location.href);
-    url.search = '';
-    const target = state.routeToId ?? state.selectedRoomId;
-    if (state.routeFromId) url.searchParams.set('from', state.routeFromId);
-    if (target) url.searchParams.set('to', target);
-    return url.toString();
-  }
-
-  let shareTimer = 0;
-  shareButton.addEventListener('click', () => {
-    const url = shareUrl();
-    const done = (text: string): void => {
-      shareButton.textContent = text;
-      window.clearTimeout(shareTimer);
-      shareTimer = window.setTimeout(() => {
-        shareButton.textContent = 'Ссылка';
-      }, 2500);
-    };
-    // Буфер обмена доступен не везде (нет https, отказ в правах) — тогда
-    // ссылка показывается в поле поиска, откуда её можно скопировать руками.
-    const fallback = (): void => {
-      searchInput.value = url;
-      searchInput.select();
-      done('Скопируйте');
-    };
-    const clipboard = navigator.clipboard;
-    if (!clipboard) {
-      fallback();
-      return;
-    }
-    void clipboard.writeText(url).then(() => done('Скопировано'), fallback);
-  });
+  /**
+   * Почему «Дойти сюда» сейчас не нажимается. Молчащая серая кнопка —
+   * это загадка: человек жмёт, ничего не происходит, и он решает, что
+   * приложение сломано. Причина говорится словами и стоит под кнопками.
+   */
+  const cardWhy = document.createElement('div');
+  cardWhy.className = 'why';
+  cardWhy.hidden = true;
+  cardWhy.setAttribute('role', 'status');
 
   const routeBlock = document.createElement('div');
   routeBlock.className = 'route';
   routeBlock.hidden = true;
   const routeHead = document.createElement('div');
   routeHead.className = 'head';
+  /**
+   * «Без лестниц» — это шаг маршрута, а не постоянная настройка. Он появляется
+   * только тогда, когда путь уже построен и у него есть второй вариант:
+   * предлагать выбор там, где выбирать не из чего, — обман.
+   */
   const routeMode = document.createElement('div');
   routeMode.className = 'mode';
+  routeMode.hidden = true;
+  const routeModeNote = document.createElement('span');
+  routeModeNote.className = 'note';
+  routeModeNote.textContent = 'Есть второй путь:';
   const stepFreeButton = document.createElement('button');
   stepFreeButton.type = 'button';
   stepFreeButton.textContent = 'Без лестниц';
   stepFreeButton.setAttribute('aria-pressed', 'false');
   stepFreeButton.addEventListener('click', () => actions.setStepFree(!store.state.stepFree));
-  routeMode.appendChild(stepFreeButton);
+  routeMode.append(routeModeNote, stepFreeButton);
 
   // Ходовая строка: человек идёт и смотрит один шаг, а не список из шести.
   const stepRow = document.createElement('div');
@@ -899,12 +1040,35 @@ export function createUi(
   stepNext.type = 'button';
   stepNext.textContent = '›';
   stepNext.setAttribute('aria-label', 'Следующий шаг');
-  stepRow.append(stepBack, stepText, stepNext);
+  /**
+   * Выход из дошедшего маршрута. Без него последний шаг был тупиком: стрелка
+   * «вперёд» гасла, крестик закрывал карточку, а следующий тап по плану
+   * возвращал в тот же последний шаг.
+   */
+  const stepDone = document.createElement('button');
+  stepDone.type = 'button';
+  stepDone.className = 'done';
+  stepDone.textContent = 'Готово';
+  stepDone.hidden = true;
+  stepDone.setAttribute('aria-label', 'Маршрут пройден, вернуться к общему виду');
+  stepRow.append(stepBack, stepText, stepNext, stepDone);
 
+  const stepTools = document.createElement('div');
+  stepTools.className = 'tools';
   const allStepsButton = document.createElement('button');
   allStepsButton.type = 'button';
   allStepsButton.className = 'all';
   allStepsButton.textContent = 'Все шаги';
+  /**
+   * Возврат к маршруту целиком. Камера идёт за каждым шагом и оказывается
+   * вплотную к повороту; вернуться к общему виду пальцами на телефоне трудно,
+   * и это должно быть действием, а не жестом.
+   */
+  const wholeRouteButton = document.createElement('button');
+  wholeRouteButton.type = 'button';
+  wholeRouteButton.className = 'all';
+  wholeRouteButton.textContent = 'Весь маршрут';
+  stepTools.append(allStepsButton, wholeRouteButton);
 
   // Честность режима «без лестниц»: пока школа не подтвердила доступность,
   // маршрут остаётся предположением, и человек должен знать об этом до того,
@@ -915,12 +1079,19 @@ export function createUi(
 
   const routeSteps = document.createElement('ol');
   routeSteps.hidden = true;
-  routeBlock.append(routeHead, routeWarn, routeMode, stepRow, allStepsButton, routeSteps);
+  routeBlock.append(routeHead, routeWarn, routeMode, stepRow, stepTools, routeSteps);
 
   /** Какой шаг маршрута показан сейчас. */
   let stepIndex = 0;
 
-  function showStep(index: number): void {
+  /**
+   * Перерисовать ходовую строку под текущий шаг. Камеру не трогает: карточка
+   * перерисовывается и от смены этажа, и от пересборки маршрута, а камера
+   * должна идти за шагом только тогда, когда шаг перелистнул человек.
+   * Раньше этого разделения не было, и любое действие, двигавшее камеру,
+   * тут же отменялось перерисовкой — в том числе «Весь маршрут».
+   */
+  function paintStep(index: number): void {
     if (!shownRoute) return;
     const steps = shownRoute.steps;
     stepIndex = Math.min(Math.max(index, 0), steps.length - 1);
@@ -929,11 +1100,19 @@ export function createUi(
     stepLabel.textContent = step.text;
     stepCounter.textContent = `Шаг ${stepIndex + 1} из ${steps.length}`;
     stepBack.disabled = stepIndex === 0;
-    stepNext.disabled = stepIndex === steps.length - 1;
+    const last = stepIndex === steps.length - 1;
+    stepNext.hidden = last;
+    stepDone.hidden = !last;
     for (const [index2, item] of [...routeSteps.children].entries()) {
       item.classList.toggle('on', index2 === stepIndex);
     }
-    actions.showStep(step);
+  }
+
+  /** Перелистнуть шаг: перерисовать строку и подвести камеру к этому месту. */
+  function showStep(index: number): void {
+    paintStep(index);
+    const step = shownRoute?.steps[stepIndex];
+    if (step) actions.showStep(step);
   }
 
   stepBack.addEventListener('click', () => showStep(stepIndex - 1));
@@ -943,6 +1122,14 @@ export function createUi(
     allStepsButton.textContent = routeSteps.hidden ? 'Все шаги' : 'Свернуть';
     measureCard();
   });
+  wholeRouteButton.addEventListener('click', () => {
+    // Карточка при этом разворачивается: человек просил показать маршрут
+    // целиком, а не только его линию под свёрнутой полосой.
+    setCompact(false);
+    measureCard();
+    actions.frameRoute();
+  });
+  stepDone.addEventListener('click', () => actions.finishRoute());
 
   routeFromButton.addEventListener('click', () => {
     const id = store.state.selectedRoomId;
@@ -952,9 +1139,8 @@ export function createUi(
     const id = store.state.selectedRoomId;
     if (id) actions.setRouteEnd('to', id);
   });
-  routeClearButton.addEventListener('click', () => actions.clearRoute());
 
-  card.append(cardClose, cardGrip, cardTitle, cardWhere, cardActions, routeBlock);
+  card.append(cardClose, cardGrip, cardTitle, cardWhere, cardActions, cardWhy, routeBlock);
   container.appendChild(card);
 
   /* ---------- главное действие: подлёт камеры ---------- */
@@ -1174,6 +1360,8 @@ export function createUi(
   let opened = false;
   /** Обе точки выбраны, а пути между ними не нашлось. */
   let routeUnreachable = false;
+  /** У показанного маршрута есть второй вариант: только тогда предлагаем выбор. */
+  let routeAlternative = false;
 
   /**
    * Начальное состояние: ничего не выбрано и маршрут не начат. Тогда поиск
@@ -1187,7 +1375,7 @@ export function createUi(
     container.classList.toggle('start', idle);
     window.requestAnimationFrame(measureStart);
     const from = state.routeFromId;
-    const fromPlace = from ? (building.roomById(from) ?? building.verticalById(from)) : undefined;
+    const fromPlace = from ? actions.placeInfo(from) : undefined;
     searchMe.classList.toggle('on', Boolean(fromPlace));
     searchMeName.textContent = fromPlace?.name ?? '';
   }
@@ -1196,7 +1384,7 @@ export function createUi(
   function setCompact(compact: boolean): void {
     cardGrip.hidden = !compact && !card.classList.contains('compact');
     card.classList.toggle('compact', compact);
-    cardGrip.textContent = compact ? '⌃' : '⌄';
+    cardGripArrow.textContent = compact ? '⌃' : '⌄';
     cardGrip.setAttribute('aria-expanded', compact ? 'false' : 'true');
   }
 
@@ -1204,14 +1392,36 @@ export function createUi(
     const state = store.state;
     const started = state.routeFromId !== null || state.routeToId !== null;
     const waiting = started && !shownRoute;
-    routeClearButton.hidden = !started;
-    // Кнопка конца прячется, только когда этот конец уже назначен: человек,
-    // назначивший цель, должен видеть предложение назначить начало.
-    routeFromButton.hidden = state.routeFromId !== null;
-    routeToButton.hidden = state.routeToId !== null;
+    const selected = state.selectedRoomId;
+    const isStart = selected !== null && selected === state.routeFromId;
+    // Обе кнопки видны всегда: они и есть карточка места. «Я здесь» на самой
+    // булавке говорит, что булавка уже тут, — прятать её значило бы отвечать
+    // на тап пустотой.
+    routeFromButton.classList.toggle('on', isStart);
+    routeFromButton.disabled = isStart;
+    routeFromButton.textContent = isStart ? 'Вы здесь' : 'Я здесь';
+    // Вести неоткуда — вести нельзя, и причина говорится словами.
+    const noStart = state.routeFromId === null;
+    const toSelf = !noStart && isStart;
+    routeToButton.disabled = noStart || toSelf;
+    if (noStart) {
+      cardWhy.textContent = 'Сначала отметьте, где вы сейчас, — кнопкой «Я здесь»';
+      cardWhy.hidden = false;
+    } else if (toSelf) {
+      cardWhy.textContent = 'Это и есть ваше место. Выберите, куда идти';
+      cardWhy.hidden = false;
+    } else {
+      const startInfo = state.routeFromId ? actions.placeInfo(state.routeFromId) : undefined;
+      // Где сейчас булавка — это ответ на «а откуда он меня поведёт»
+      // и одновременно подсказка, что её можно перенести.
+      cardWhy.textContent = startInfo ? `Идём от «${startInfo.name}»` : '';
+      cardWhy.hidden = !startInfo;
+    }
     stepFreeButton.classList.toggle('on', state.stepFree);
     stepFreeButton.setAttribute('aria-pressed', state.stepFree ? 'true' : 'false');
-    routeMode.hidden = !started;
+    // Выбор появляется только у построенного маршрута и только если второй
+    // путь действительно есть.
+    routeMode.hidden = !(shownRoute && routeAlternative);
 
     if (shownRoute) {
       // Минута пути внутри этажа — это сообщение «маршрут тебе не нужен».
@@ -1242,7 +1452,7 @@ export function createUi(
         routeSteps.appendChild(item);
       });
       stepRow.hidden = false;
-      allStepsButton.hidden = false;
+      stepTools.hidden = false;
       routeBlock.hidden = false;
       // Маршрут построен — человек идёт, а не читает карточку: она сворачивается
       // в полосу с текущим шагом. Развернуть можно кнопкой, состояние держится.
@@ -1251,7 +1461,7 @@ export function createUi(
         shownRouteId = routeKey(shownRoute);
         setCompact(true);
       }
-      showStep(stepIndex);
+      paintStep(stepIndex);
       measureCard();
       syncStart();
       return;
@@ -1262,6 +1472,8 @@ export function createUi(
       routeHead.textContent =
         'Маршрут сюда пока не строится. Выберите другое место или спросите на входе';
       routeSteps.replaceChildren();
+      stepRow.hidden = true;
+      stepTools.hidden = true;
       routeBlock.hidden = false;
       setCompact(false);
       syncStart();
@@ -1274,6 +1486,8 @@ export function createUi(
           ? 'Теперь выберите, куда идти — тапом или поиском'
           : 'Теперь выберите, откуда идти — тапом или поиском';
       routeSteps.replaceChildren();
+      stepRow.hidden = true;
+      stepTools.hidden = true;
       routeBlock.hidden = false;
       setCompact(false);
       measureCard();
@@ -1310,30 +1524,20 @@ export function createUi(
     }
     shownRoomId = state.selectedRoomId;
 
-    const room = shownRoomId ? building.roomById(shownRoomId) : undefined;
-    // Выбрана может быть и связь: у лестницы номера нет, а этажей несколько.
-    const place = room || !shownRoomId ? undefined : building.verticalById(shownRoomId);
-    if (!room && !place) {
+    // Местом может быть помещение, лестница, лифт, вход или кусок коридора:
+    // как его назвать, знает точка сборки — у интерфейса на руках только
+    // идентификатор.
+    const info = shownRoomId ? actions.placeInfo(shownRoomId) : undefined;
+    if (!info) {
       card.hidden = true;
       measureCard();
       syncStart();
       return;
     }
-    const number = room?.planNumber ?? '';
-    cardNumber.textContent = number;
-    cardNumber.hidden = number === '';
-    cardName.textContent = room ? room.name : (place?.name ?? '');
-    if (room) {
-      cardWhere.textContent = `${room.floor} этаж, ${building.passport.shortName}`;
-    } else if (place) {
-      const levels = [...place.levels].sort((one, two) => one - two);
-      const first = levels[0] ?? place.level;
-      const last = levels[levels.length - 1] ?? place.level;
-      cardWhere.textContent =
-        levels.length > 1
-          ? `этажи ${first}–${last}, ${building.passport.shortName}`
-          : `${first} этаж, ${building.passport.shortName}`;
-    }
+    cardNumber.textContent = info.number;
+    cardNumber.hidden = info.number === '';
+    cardName.textContent = info.name;
+    cardWhere.textContent = info.where;
     renderRoute();
     card.hidden = false;
     measureCard();
@@ -1373,18 +1577,18 @@ export function createUi(
       opened = value;
       revealButton.hidden = store.state.mode !== 'whole' || opened;
     },
-    showRoute(route: Route | undefined, unreachable = false): void {
+    showRoute(route: Route | undefined, facts: RouteFacts = {}): void {
       // Шаг сбрасывается только у нового маршрута: тот же маршрут после
       // смены этажа не должен отматывать человека к началу пути.
       if (route !== shownRoute) stepIndex = 0;
       shownRoute = route;
-      routeUnreachable = unreachable;
+      routeUnreachable = facts.unreachable === true;
+      routeAlternative = facts.alternative === true;
       renderRoute();
     },
     dispose(): void {
       unsubscribe();
       window.clearTimeout(noteTimer);
-      window.clearTimeout(shareTimer);
       window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('resize', measureStart);
       viewport?.removeEventListener('resize', liftForKeyboard);

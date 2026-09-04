@@ -24,6 +24,13 @@ export interface InteractionOptions {
   focus: (point: Vector3) => void;
   /** Вернуть камеру к стартовой рамке: то же действие, что и кнопка «корпус целиком». */
   home: () => void;
+  /**
+   * Привязать точку пола к ближайшему месту, откуда можно идти: коридору,
+   * лестнице, лифту. Возвращает идентификатор места или `null`, если рядом
+   * ничего нет. Без этого начать путь можно было бы только из помещения —
+   * а человек стоит в коридоре и у лифта чаще, чем в аудитории.
+   */
+  anchorAt?: (level: number, x: number, z: number) => string | null;
 }
 
 /** Порог, за которым движение указателя считается вращением камеры, а не кликом. */
@@ -41,7 +48,9 @@ const TOUCH_DRAG_THRESHOLD = 12;
 const PICKABLE_OPENNESS = 0.35;
 
 export function createInteraction(options: InteractionOptions): InteractionHandle {
-  const { canvas, camera, store, building, focus, home } = options;
+  const { canvas, camera, store, building, focus, home, anchorAt } = options;
+  /** Отметки полов: считаются один раз, а не на каждое касание. */
+  const elevations = new Map(building.floors.map((floor) => [floor.level, floor.elevation]));
   const picker = new RoomPicker();
   const point = new Vector3();
   // Группы оболочки не меняются за жизнь здания: список считается один раз,
@@ -55,7 +64,12 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
   /** Был ли за время касания второй палец — пинч не должен выбирать помещение. */
   let multiTouch = false;
 
-  function pickAt(event: PointerEvent | MouseEvent): string | null {
+  /**
+   * Что под указателем. `allowAnchor` включает привязку промаха к ближайшему
+   * узлу графа: это выбор, а не наведение — при наведении курсор становился бы
+   * рукой над всем этажом, включая пустые места.
+   */
+  function pickAt(event: PointerEvent | MouseEvent, allowAnchor = false): string | null {
     const state = store.state;
     // Режим больше не решает, есть ли кликабельный слой: в «здании целиком»
     // интерьеры видны сквозь растворённые грани, и клик по ним обязан работать.
@@ -63,16 +77,26 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
     const level = state.mode === 'floor' ? state.activeFloor : null;
     if (level === null && building.openness() < PICKABLE_OPENNESS) return null;
     const rect = canvas.getBoundingClientRect();
+    const px = event.clientX - rect.left;
+    const py = event.clientY - rect.top;
     const hit = picker.pick(
-      event.clientX - rect.left,
-      event.clientY - rect.top,
+      px,
+      py,
       rect.width,
       rect.height,
       camera,
       building.pickTargets(level),
       occluders,
     );
-    return hit ? hit.room.id : null;
+    if (hit) return hit.room.id;
+    // Плиты под пальцем нет — значит попали в коридор, на площадку лестницы
+    // или мимо этажа вовсе. Первое и второе — это место, откуда можно идти.
+    if (!allowAnchor || !anchorAt || level === null) return null;
+    const elevation = elevations.get(level);
+    if (elevation === undefined) return null;
+    const floorPoint = picker.pickFloor(px, py, rect.width, rect.height, camera, elevation);
+    if (!floorPoint) return null;
+    return anchorAt(level, floorPoint.x, floorPoint.z);
   }
 
   /**
@@ -137,7 +161,7 @@ export function createInteraction(options: InteractionOptions): InteractionHandl
     const dragged =
       Math.abs(event.clientX - downX) > threshold || Math.abs(event.clientY - downY) > threshold;
     if (dragged) return;
-    const id = pickAt(event);
+    const id = pickAt(event, true);
     store.set({ selectedRoomId: id });
     if (id) {
       const room = building.roomById(id);

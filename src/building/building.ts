@@ -21,7 +21,13 @@ import { createShell } from '@building/shell';
 import { ROOF_CHANNEL, createRoof } from '@building/roof';
 import { createFloors } from '@building/floors';
 import type { VerticalPlace } from '@building/floors';
-import type { BuildingPassport, BuildingSource, FloorView, RoomView } from '@building/source';
+import type {
+  BuildingPassport,
+  BuildingSource,
+  EntranceView,
+  FloorView,
+  RoomView,
+} from '@building/source';
 import { passportCenter, passportRadius } from '@building/source';
 
 /**
@@ -41,6 +47,8 @@ export interface BuildingHandle {
   passport: BuildingPassport;
   /** Этажи так, как их видит интерфейс: номер, название, известна ли планировка. */
   floors: FloorView[];
+  /** Вход в здание, если источник его знает: с него начинается путь с улицы. */
+  entrance: EntranceView | undefined;
   center: Vector3;
   radius: number;
   /**
@@ -191,6 +199,7 @@ export function createBuilding(scene: Scene, source: BuildingSource): BuildingHa
   return {
     passport,
     floors: floorViews,
+    entrance: source.entrance?.(),
     center: new Vector3(center.x, center.y, center.z),
     radius,
     applyState,

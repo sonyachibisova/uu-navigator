@@ -259,14 +259,11 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
   const steps: RouteStep[] = [];
   const first = nodes[0];
   if (first) {
-    steps.push({
-      text:
-        first.kind === 'room'
-          ? `Выйдите из «${first.ownerName}»`
-          : `Вы у «${first.ownerName}» — отсюда и пойдём`,
-      level: first.level,
-      at: { x: first.x, z: first.z },
-    });
+    let opening: string;
+    if (first.kind === 'room') opening = `Выйдите из «${first.ownerName}»`;
+    else if (first.kind === 'entrance') opening = `Вы у входа: ${first.ownerName}`;
+    else opening = `Вы у «${first.ownerName}» — отсюда и пойдём`;
+    steps.push({ text: opening, level: first.level, at: { x: first.x, z: first.z } });
   }
 
   let run = 0;
@@ -328,6 +325,22 @@ function describe(nodes: readonly GraphNode[]): RouteStep[] {
     const node = nodes[i];
     const next = nodes[i + 1];
     if (!node || !next) continue;
+
+    // Вестибюль. Планировки первого этажа нет, и путь от двери до ствола
+    // посчитан по прямой: сказать «18 м направо» значило бы назвать цифру,
+    // которой никто не мерил. Шаг честно говорит, что схема появится позже.
+    if (node.kind === 'entrance' || next.kind === 'entrance') {
+      flushRemainder();
+      steps.push({
+        text:
+          node.kind === 'entrance'
+            ? `Войдите и пройдите к «${next.ownerName}» — точная схема вестибюля появится позже`
+            : 'Пройдите через вестибюль к выходу — точная схема вестибюля появится позже',
+        level: node.level,
+        at: { x: node.x, z: node.z },
+      });
+      continue;
+    }
 
     if (next.level !== node.level) {
       flushRemainder();
