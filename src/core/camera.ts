@@ -118,6 +118,15 @@ export interface CameraHandle {
    * изменении соотношения сторон.
    */
   overviewDistance: () => number;
+  /**
+   * Сообщить камере, сколько пикселей внизу экрана закрыто интерфейсом
+   * (стартовый лист, карточка места), — здание должно центрироваться
+   * в свободной части экрана, а не за вычетом невидимой полосы.
+   * Двигает не саму камеру, а срез кадра (`setViewOffset`): точка интереса
+   * остаётся на месте, картинка просто смещается вверх на нужную долю —
+   * ракурс и дистанция подлёта этим не затрагиваются.
+   */
+  setBottomInset: (px: number) => void;
   dispose: () => void;
 }
 
@@ -275,6 +284,26 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
   }
   controls.addEventListener('start', onUserInput);
 
+  /** Пикселей снизу, закрытых интерфейсом — см. `setBottomInset`. */
+  let bottomInset = 0;
+
+  /**
+   * Пересчитать срез кадра под текущий размер холста и текущий отступ.
+   * Смещение — доля от отношения (высота холста + отступ) к высоте холста:
+   * ровно то, что нужно, чтобы точка интереса, обычно попадающая в центр
+   * кадра, встала в центр области над панелью, а не экрана целиком.
+   */
+  function applyBottomInset(): void {
+    const width = domElement.clientWidth;
+    const height = domElement.clientHeight;
+    if (bottomInset > 0 && width > 0 && height > 0) {
+      camera.setViewOffset(width, height + bottomInset, 0, bottomInset, width, height);
+    } else {
+      camera.clearViewOffset();
+    }
+    camera.updateProjectionMatrix();
+  }
+
   return {
     camera,
     controls,
@@ -282,6 +311,9 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       if (Math.abs(camera.aspect - lastAspect) > 1e-4) {
         lastAspect = camera.aspect;
         updateHomeFrame();
+        // Холст сменил размер (resize, поворот экрана) — срез кадра посчитан
+        // под старые пиксели и без обновления съедет.
+        applyBottomInset();
         // Пока человек не трогал камеру (первые секунды, поворот экрана в руках),
         // рамка подстраивается сама. После первого касания — только по кнопке возврата.
         if (!touched) {
@@ -414,6 +446,12 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       startFlight();
     },
     overviewDistance: () => overview,
+    setBottomInset(px: number): void {
+      const next = Math.max(0, Math.round(px));
+      if (next === bottomInset) return;
+      bottomInset = next;
+      applyBottomInset();
+    },
     dispose(): void {
       controls.removeEventListener('start', onUserInput);
       controls.dispose();

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Мобильный превью</title>
+    <style>
+      /*
+        Локальный инструмент разработки: показывает сайт внутри рамки
+        размером с телефон, чтобы видеть портретную раскладку на компьютере,
+        не открывая проект на телефоне и не подгоняя окно браузера под нужную
+        форму — сама вкладка может быть развёрнута на весь экран как угодно.
+
+        Работает потому, что у вложенного `iframe` собственный viewport:
+        медиа-запросы `orientation` и расчёт кадра камеры смотрят на размер
+        этого viewport, а не окна вкладки, и остаются портретными независимо
+        от него. Раздачи посетителям этот файл не касается — он не подключён
+        ни к одной странице продукта и не участвует в сборке.
+      */
+      :root { color-scheme: light; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: #d9d9d9;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .device {
+        box-sizing: border-box;
+        width: 393px;
+        height: 852px;
+        overflow: hidden;
+        border-radius: 32px;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+        background: #efefef;
+      }
+      iframe {
+        display: block;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="device">
+      <iframe src="/" title="Мобильный вид"></iframe>
+    </div>
+  </body>
+</html>

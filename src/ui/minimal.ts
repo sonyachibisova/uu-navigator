@@ -383,6 +383,12 @@ export interface UiActions {
    * в данных, но человеку они называются так же.
    */
   placeInfo: (id: string) => PlaceInfo | undefined;
+  /**
+   * Высота нижней панели изменилась (стартовый лист или карточка места).
+   * Точка сборки подводит этим числом кадр камеры — здание центрируется
+   * в части экрана, свободной от панели, а не во весь экран целиком.
+   */
+  onOcclusionChange?: (px: number) => void;
 }
 
 /** Строки карточки места: номер, название и где это. */
@@ -1548,12 +1554,17 @@ export function createUi(
    * снизу именно на неё: постоянное число не спасало — карточка с шестью
    * шагами маршрута закрывала кнопку «корпус целиком».
    */
+  let lastCardOcclusion = 0;
+  let lastStartOcclusion = 0;
+
   function measureCard(): void {
     const height = card.hidden ? 0 : card.offsetHeight;
     container.style.setProperty('--card-h', `${Math.max(height, 96)}px`);
     // Отдельная величина без нижней границы: ею список обозначений
     // отодвигается от карточки, а когда карточки нет — не отодвигается вовсе.
     container.style.setProperty('--card-over', `${height > 0 ? height + 8 : 0}px`);
+    lastCardOcclusion = height > 0 ? height + gapBottom() : 0;
+    reportOcclusion();
   }
 
   /**
@@ -1565,7 +1576,36 @@ export function createUi(
     const start = container.classList.contains('start');
     const height = start ? search.offsetHeight : 0;
     container.style.setProperty('--start-h', `${height}px`);
+    lastStartOcclusion = height > 0 ? height + gapBottom() : 0;
+    reportOcclusion();
   }
+
+  /** Отступ безопасной зоны снизу: та же переменная, что держит панели над краем. */
+  function gapBottom(): number {
+    const px = parseFloat(getComputedStyle(container).getPropertyValue('--gap-b'));
+    return Number.isFinite(px) ? px : 10;
+  }
+
+  /**
+   * Стартовый лист и карточка места не показываются одновременно — но если
+   * когда-нибудь окажутся видны оба, в кадр камеры уходит больший из них,
+   * а не сумма: они лежат в одном нижнем углу, а не друг под другом.
+   */
+  function reportOcclusion(): void {
+    actions.onOcclusionChange?.(Math.max(lastCardOcclusion, lastStartOcclusion));
+  }
+
+  /**
+   * `requestAnimationFrame` на старте иногда обгоняет реальную раскладку
+   * (шрифт, первая отрисовка) — высота на этот момент читается нулевой,
+   * а обновить её больше нечему до первого resize. `ResizeObserver` не
+   * гадает с таймингом: он сообщает и стартовый размер, и каждое
+   * дальнейшее изменение панели, откуда бы оно ни пришло.
+   */
+  const startResize = new ResizeObserver(() => measureStart());
+  startResize.observe(search);
+  const cardResize = new ResizeObserver(() => measureCard());
+  cardResize.observe(card);
 
   render(store.state);
   const unsubscribe = store.subscribe((next) => render(next));
@@ -1589,6 +1629,8 @@ export function createUi(
     dispose(): void {
       unsubscribe();
       window.clearTimeout(noteTimer);
+      startResize.disconnect();
+      cardResize.disconnect();
       window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('resize', measureStart);
       viewport?.removeEventListener('resize', liftForKeyboard);
