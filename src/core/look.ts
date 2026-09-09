@@ -24,7 +24,17 @@ export type FloorPaletteKind =
   /** Прежняя цветная палитра: оставлена для сравнения, по умолчанию не берётся. */
   | 'color';
 
-/** Оформление номера помещения на плите. */
+/**
+ * Подписи помещений на плане.
+ *
+ * `off` — план чистый: ни номеров, ни названий на плитах. Помещение
+ * называет себя само, когда его выбрали: метка над ним и карточка снизу.
+ * Номера при этом никуда не делись — они лежат в данных и по ним считаются
+ * маршруты, поиск и каталог; их просто не видно на плане.
+ */
+export type PlanLabelsKind = 'off' | 'on';
+
+/** Оформление номера помещения на плите. Работает только при `planLabels: 'on'`. */
 export type RoomNumberKind =
   /** 1 — без плашки: цифра прямо на плите, цвет считается от ступени серого под ней. */
   | 'bare'
@@ -52,6 +62,7 @@ export type BackdropKind =
   | 'paper';
 
 export interface Look {
+  planLabels: PlanLabelsKind;
   floorPalette: FloorPaletteKind;
   roomNumber: RoomNumberKind;
   routeLine: RouteLineKind;
@@ -63,10 +74,11 @@ export interface Look {
  * владелец выбирает, и правится ровно этот объект.
  */
 export const LOOK: Look = {
+  planLabels: 'off',
   floorPalette: 'greyA',
   roomNumber: 'glass',
   routeLine: 'glow',
-  backdrop: 'graphite',
+  backdrop: 'paper',
 };
 
 /**
@@ -74,6 +86,7 @@ export const LOOK: Look = {
  * и как список того, между чем вообще идёт выбор.
  */
 const ALLOWED: { [K in keyof Look]: readonly Look[K][] } = {
+  planLabels: ['off', 'on'],
   floorPalette: ['greyA', 'greyB', 'color'],
   roomNumber: ['bare', 'sharp', 'underline', 'glass'],
   routeLine: ['glow', 'wave'],
@@ -81,7 +94,7 @@ const ALLOWED: { [K in keyof Look]: readonly Look[K][] } = {
 };
 
 /**
- * Временная подмена облика из адреса: `?pol=greyB&nomer=sharp&liniya=wave&fon=dusk`.
+ * Временная подмена облика из адреса: `?podpisi=on&pol=greyB&nomer=sharp&liniya=wave&fon=dusk`.
  *
  * Нужна ровно для одного — показать варианты рядом, не пересобирая приложение.
  * Посетитель этих параметров не знает и не увидит: без них берётся `LOOK`.
@@ -102,6 +115,7 @@ export function applyLookFromUrl(search: string): void {
     if (!allowed.includes(value)) return;
     LOOK[field] = value as Look[K];
   }
+  pick('podpisi', 'planLabels');
   pick('pol', 'floorPalette');
   pick('nomer', 'roomNumber');
   pick('liniya', 'routeLine');

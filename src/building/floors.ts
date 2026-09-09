@@ -22,6 +22,7 @@
 import { Color, Group, InstancedMesh, Matrix4, Quaternion, Vector3 } from 'three';
 import { PartBatcher, disposeBatched } from '@building/batch';
 import { unitBox } from '@building/geometry';
+import { LOOK } from '@core/look';
 import { buildLabelLayer } from '@building/labels';
 import type { LabelLayer } from '@building/labels';
 import type { Palette } from '@building/materials';
@@ -281,6 +282,10 @@ export function createFloors(
   function ensureLabels(layer: FloorLayer): void {
     if (layer.labelsBuilt) return;
     layer.labelsBuilt = true;
+    // План без подписей (`LOOK.planLabels === 'off'`): атлас не растеризуется
+    // вовсе, а `labelSpecs` остаются на месте — номера нужны маршрутам,
+    // поиску и каталогу, просто не видны на плите.
+    if (LOOK.planLabels === 'off') return;
     const built = buildLabelLayer(layer.labelSpecs, layer.labelChannel, layer.group);
     if (!built) return;
     labelLayers.push(built);

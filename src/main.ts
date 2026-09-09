@@ -298,6 +298,10 @@ function main(): void {
         width: room.plate.width,
         depth: room.plate.depth,
         raised,
+        // Номер помещения на плане не подписан — он называется здесь, над
+        // выбранным местом. Названия без номера достаточно там, где номера
+        // по плану нет вовсе.
+        caption: room.planNumber ? `${room.name} ${room.planNumber}` : room.name,
       };
     }
     const place = routeGraph.placeOf(id);
@@ -589,7 +593,7 @@ function main(): void {
       environment.requestShadowUpdate();
     }
     routeView.update(dt);
-    markers.update(dt);
+    markers.update(dt, cameraHandle.camera);
     // Раскрытие идёт от близости камеры и меняется в кадре, а не в сторе:
     // интерфейс узнаёт о нём отсюда, и только когда признак действительно
     // изменился — иначе это была бы работа с DOM на каждом кадре.

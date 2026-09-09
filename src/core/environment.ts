@@ -1,5 +1,5 @@
 /**
- * Окружение сцены: небо, туман, свет, земля и тротуар вдоль лицевой стороны.
+ * Окружение сцены: фон, туман, свет и земля.
  *
  * Это не здание, поэтому окружение живёт отдельно от четырёх групп здания
  * (`shellGroup`, `facadeGroup`, `roofGroup`, `floorsGroup`) и собрано в свою
@@ -19,6 +19,7 @@ import {
   Mesh,
   MeshStandardMaterial,
   PlaneGeometry,
+  ShadowMaterial,
   SRGBColorSpace,
 } from 'three';
 import type { Material, Scene, Texture, WebGLRenderer } from 'three';
@@ -28,7 +29,7 @@ import { LOOK } from '@core/look';
 import type { BackdropKind } from '@core/look';
 
 /**
- * Облик подложки: фон, туман, земля, тротуар и свет.
+ * Облик подложки: фон, туман, земля и свет.
  *
  * Небо и олива были остатком «уличной» сцены и спорили с тёмным стеклом
  * интерфейса: панели тёмные, а модель стояла в голубом дне. Все три варианта
@@ -40,7 +41,16 @@ interface Backdrop {
   sky: number | readonly [number, number];
   fog: number;
   ground: number;
-  walk: number;
+  /**
+   * Земля показывает только тень, а не свою поверхность.
+   *
+   * Нужно светлой подложке. Освещённая плита физически не может стать
+   * такой же светлой, как фон (яркость упирается в единицу), поэтому
+   * под зданием всегда оставалась серо-бежевая площадка с линией горизонта
+   * по краю. Прозрачная земля решает это разом: фон остаётся ровным,
+   * а тень от здания на месте — здание стоит, а не висит.
+   */
+  groundShadowOnly?: boolean;
   hemiSky: number;
   hemiGround: number;
   hemiIntensity: number;
@@ -55,7 +65,6 @@ const BACKDROPS: Record<BackdropKind, Backdrop> = {
     sky: 0x15191d,
     fog: 0x15191d,
     ground: 0x212629,
-    walk: 0x2b3135,
     hemiSky: 0xa8bccb,
     hemiGround: 0x14181c,
     hemiIntensity: 0.8,
@@ -68,25 +77,27 @@ const BACKDROPS: Record<BackdropKind, Backdrop> = {
     sky: [0x0b0f14, 0x2d3b47],
     fog: 0x1d262e,
     ground: 0x181d22,
-    walk: 0x232b32,
     hemiSky: 0x7f9cb5,
     hemiGround: 0x111418,
     hemiIntensity: 0.75,
     sunColor: 0xffd9b0,
     sunIntensity: 1.35,
   },
-  // 3 «Бумага»: светлая нейтральная подложка без неба и без оливы —
-  // макет на столе. Здание светлое, тёмные панели интерфейса контрастны.
+  // 3 «Бумага»: ровный светло-серый без неба и без оливы — макет на столе.
+  // Тон нейтральный (#efefef), а не тёплый: здание и лаймовая линия пути
+  // не должны попадать на бежевую подложку. Земля на полтона темнее фона —
+  // ровно настолько, чтобы под зданием читалась тень и не возникала линия
+  // горизонта.
   paper: {
-    sky: 0xe7e6e1,
-    fog: 0xe7e6e1,
-    ground: 0xd3d2cc,
-    walk: 0xdddcd6,
+    sky: 0xefefef,
+    fog: 0xefefef,
+    ground: 0xefefef,
+    groundShadowOnly: true,
     hemiSky: 0xffffff,
-    hemiGround: 0x9c9a92,
+    hemiGround: 0xdadadc,
     hemiIntensity: 0.95,
-    sunColor: 0xfff4e2,
-    sunIntensity: 1.5,
+    sunColor: 0xffffff,
+    sunIntensity: 1.4,
   },
 };
 
@@ -122,10 +133,6 @@ const SUN_DIR = { x: -1.62, y: 2.64, z: 1.62 };
 const SHADOW_EXTENT = 1.58;
 const SHADOW_NEAR = 0.4;
 const SHADOW_FAR = 6.9;
-/** Отступ тротуара от лицевой грани и его ширина, метры. */
-const WALK_OFFSET = 7;
-const WALK_WIDTH = 12;
-const WALK_MARGIN = 20;
 
 export interface EnvironmentHandle {
   group: Group;
@@ -142,7 +149,7 @@ export interface EnvironmentHandle {
 }
 
 export interface SiteFrame extends CameraFrame {
-  /** Габарит здания в плане: по нему кладётся тротуар. */
+  /** Габарит здания в плане: по нему кладётся всё, что стоит на земле. */
   footprint: { x0: number; x1: number; z0: number; z1: number };
 }
 
@@ -194,22 +201,15 @@ export function createEnvironment(
   group.add(sun.target);
 
   const groundGeometry = new PlaneGeometry(frame.radius * GROUND_SIZE, frame.radius * GROUND_SIZE);
-  const groundMaterial = new MeshStandardMaterial({ color: backdrop.ground, roughness: 1 });
+  const groundMaterial =
+    backdrop.groundShadowOnly === true
+      ? new ShadowMaterial({ opacity: 0.16 })
+      : new MeshStandardMaterial({ color: backdrop.ground, roughness: 1 });
   const ground = new Mesh(groundGeometry, groundMaterial);
   ground.name = 'environment.ground';
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   group.add(ground);
-
-  const { x0, x1, z1 } = frame.footprint;
-  const walkGeometry = new PlaneGeometry(x1 - x0 + WALK_MARGIN, WALK_WIDTH);
-  const walkMaterial = new MeshStandardMaterial({ color: backdrop.walk, roughness: 1 });
-  const walk = new Mesh(walkGeometry, walkMaterial);
-  walk.name = 'environment.walk';
-  walk.rotation.x = -Math.PI / 2;
-  walk.position.set((x0 + x1) / 2, 0.06, z1 + WALK_OFFSET);
-  walk.receiveShadow = true;
-  group.add(walk);
 
   function requestShadowUpdate(): void {
     if (!sun.castShadow) return;
@@ -254,8 +254,6 @@ export function createEnvironment(
       sun.removeFromParent();
       groundGeometry.dispose();
       groundMaterial.dispose();
-      walkGeometry.dispose();
-      walkMaterial.dispose();
       skyTexture?.dispose();
       scene.remove(group);
       scene.fog = null;
