@@ -7,7 +7,7 @@
  * пикселей опускается до 1.0. Обратно качество не поднимается: мигание
  * настройками хуже, чем стабильно простая картинка.
  */
-import { PCFShadowMap, PCFSoftShadowMap, WebGLRenderer } from 'three';
+import { PCFShadowMap, VSMShadowMap, WebGLRenderer } from 'three';
 import type { PerspectiveCamera } from 'three';
 
 /** Больше 1.5 не берём: производительность важнее ретины. */
@@ -63,7 +63,10 @@ export function createRenderer(container: HTMLElement, camera: PerspectiveCamera
   const maxRatio = mobile ? Math.min(MAX_PIXEL_RATIO, 1.25) : MAX_PIXEL_RATIO;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, maxRatio));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = mobile ? PCFShadowMap : PCFSoftShadowMap;
+  // VSM даёт настраиваемый блюр (`shadow.radius` в @core/environment) — мягкий
+  // край вместо резкой границы PCFSoftShadowMap. На мобильном оставлен более
+  // дешёвый PCFShadowMap — бюджет платформы.
+  renderer.shadowMap.type = mobile ? PCFShadowMap : VSMShadowMap;
   // Солнце и геометрия статичны, поэтому полный теневой проход каждый кадр не нужен:
   // карта пересчитывается точечно, по запросу сцены (см. `@core/environment`).
   renderer.shadowMap.autoUpdate = false;

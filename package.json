@@ -6,6 +6,7 @@
   "description": "Интерактивная 3D-навигация по зданию. Ядро рендера переиспользуется между зданиями.",
   "scripts": {
     "dev": "vite",
+    "mobile": "bash scripts/open-mobile.sh",
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",

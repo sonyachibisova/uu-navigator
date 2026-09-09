@@ -129,7 +129,11 @@ function makeSkyGradient(top: number, bottom: number): CanvasTexture {
 const FOG_NEAR = 5.68;
 const FOG_FAR = 12.98;
 const GROUND_SIZE = 12.2;
-const SUN_DIR = { x: -1.62, y: 2.64, z: 1.62 };
+// Солнце по ту же сторону, что и камера (x −1.62/z +1.62), светило почти
+// из-за спины зрителя: тень падала прямо от здания, за него, и не была видна.
+// Отражение по x и z ставит солнце за здание — тень ложится вперёд, навстречу
+// камере, как при контровом свете.
+const SUN_DIR = { x: 1.62, y: 2.64, z: -1.62 };
 const SHADOW_EXTENT = 1.58;
 const SHADOW_NEAR = 0.4;
 const SHADOW_FAR = 6.9;
@@ -187,6 +191,10 @@ export function createEnvironment(
   // Единственный источник теней в сцене. На мобильном карта вдвое меньше — бюджет проекта.
   const shadowSize = isMobileLike() ? 1024 : 2048;
   sun.shadow.mapSize.set(shadowSize, shadowSize);
+  // Блюр края тени (только VSMShadowMap — см. @core/renderer). На мобильном
+  // рендерер работает в PCFShadowMap, где `radius` не действует, но выставлять
+  // его не вредно и упрощает код: одна настройка на обе платформы.
+  sun.shadow.radius = 6;
   const extent = frame.radius * SHADOW_EXTENT;
   sun.shadow.camera.left = -extent;
   sun.shadow.camera.right = extent;
