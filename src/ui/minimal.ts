@@ -81,11 +81,38 @@ const STYLE = `
    например, ходовая строка без маршрута — продолжал показываться. */
 #ui-root [hidden] { display: none !important; }
 
+/* Шапка. Висит всегда: человек, пришедший по ссылке или по наклейке, должен
+   видеть, где он, не нажав ничего.
+
+   Тёмного стекла под текстом нет и подложки нет вовсе: буквы лежат прямо
+   на сцене. Интерфейс переезжает на светлый язык, и шапка — первая его часть,
+   поэтому цвета заданы здесь своими и от тёмной палитры не зависят. */
+#ui-head { position: absolute; z-index: 6; top: 0; left: 0; right: 0; box-sizing: border-box;
+  padding: calc(max(10px, env(safe-area-inset-top, 0px)) + 4px) var(--gap-r) 13px
+    calc(var(--gap-l) + 4px);
+  --head-ink: #16181a; --head-dim: rgba(22,24,26,.55); }
+/* Подложка появляется, только когда за шапкой оказывается план: во время
+   маршрута этаж занимает весь экран, и по чертежу текст не читается. */
+#ui-root.route #ui-head { background: #ffffff; border-bottom: 1px solid rgba(20,22,25,.09); }
+#ui-head .brand { color: var(--head-ink); font: 700 17px/1.2 Univers, system-ui, sans-serif;
+  letter-spacing: -.01em; }
+#ui-head .crumbs { display: flex; align-items: center; gap: 6px; margin-top: 4px;
+  color: var(--head-dim); font: 400 13px/1.2 Univers, sans-serif; }
+#ui-head .crumbs .sep { color: var(--head-dim); }
+/* Нажимаются стрелка и текущий корпус — обе возвращают к общему виду.
+   Кампус остаётся словом: корпус один, и экрана выбора у него нет.
+   Поле нажатия выше надписи: запас по вертикали прячется отрицательными
+   полями и не раздувает ни шапку, ни просвет вокруг косой черты. */
+#ui-head .crumbs button { padding: 10px 0; margin: -10px 0; border: 0; background: none;
+  color: rgba(22,24,26,.74); font: 400 13px/1.2 Univers, sans-serif; cursor: pointer; }
+#ui-head .crumbs .back { margin-right: 0; font-size: 16px; line-height: 1; }
+#ui-head .crumbs button:hover { color: var(--head-ink); }
+
 /* Поиск. В начальном состоянии он не строка вверху, а лист снизу с вопросом:
    человек приходит с вопросом «где 4.09», и первое, что он видит, — вопрос
    и поле. Как только место выбрано, лист сжимается в строку у верхнего края
    и отдаёт экран плану. */
-#ui-search { position: absolute; z-index: 5; top: var(--gap-t);
+#ui-search { position: absolute; z-index: 5; top: calc(var(--head-h, 64px) + 8px);
   left: var(--gap-l); right: var(--gap-r); }
 #ui-search .ask { display: none; margin: 2px 2px 14px; color: var(--ink);
   font: 700 30px/1.05 Univers, system-ui, sans-serif; letter-spacing: -.02em; }
@@ -147,12 +174,12 @@ const STYLE = `
 /* Колонна этажей стоит над листом, а не на нём: полоса начинается у самого
    верха экрана, а кнопки в этом состоянии компактнее — на коротком телефоне
    лист с вопросом и колонна вместе занимают почти всю высоту. */
-#ui-root.start #ui-floors { z-index: 6; top: var(--gap-t); bottom: calc(var(--gap-b) + var(--start-h, 320px) + 10px); gap: 6px; }
+#ui-root.start #ui-floors { z-index: 6; top: calc(var(--head-h, 64px) + 8px); bottom: calc(var(--gap-b) + var(--start-h, 320px) + 10px); gap: 6px; }
 #ui-root.start #ui-floors .row { gap: 6px; }
 #ui-root.start #ui-floors button { min-width: 44px; height: 44px; }
 #ui-root.start #ui-legend { display: none; }
 
-#ui-hint { position: absolute; z-index: 1; top: calc(var(--gap-t) + 58px); left: var(--gap-l); right: var(--gap-r);
+#ui-hint { position: absolute; z-index: 1; top: calc(var(--head-h, 64px) + 66px); left: var(--gap-l); right: var(--gap-r);
   box-sizing: border-box; min-height: 44px; padding: 10px 52px 10px 14px; border-radius: var(--r);
   border: 1px solid var(--line); background: var(--glass); backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur); color: var(--ink); font-size: 14px; line-height: 1.45; }
@@ -249,7 +276,7 @@ const STYLE = `
 /* Колонна этажей живёт в полосе между подсказкой и карточкой: заданы и top,
    и bottom, поэтому она не наезжает ни на ту, ни на другую даже на коротком экране. */
 #ui-floors { position: absolute; z-index: 2; right: var(--gap-r);
-  top: calc(var(--gap-t) + 96px); bottom: calc(var(--gap-b) + var(--card-h, 150px) + 16px);
+  top: calc(var(--head-h, 64px) + 104px); bottom: calc(var(--gap-b) + var(--card-h, 150px) + 16px);
   display: flex; flex-direction: column; align-items: flex-end; justify-content: center; gap: 8px; }
 #ui-floors .row { display: flex; flex-direction: column; gap: 8px; }
 #ui-floors button { min-width: 46px; height: 46px; padding: 0 8px; border: 1px solid var(--line);
@@ -290,10 +317,17 @@ const STYLE = `
 #ui-root.start #ui-legend { display: none; }
 
 @media (orientation: landscape) {
+  /* Полоса во всю ширину съела бы половину высоты: в ландшафте шапка стоит
+     колонкой слева, как поиск и подсказка. Отступы одни на оба состояния —
+     иначе панели под ней прыгали бы вслед за появлением подложки. */
+  #ui-head { top: var(--gap-t); left: var(--gap-l); right: auto; width: min(380px, 44vw);
+    padding: 11px 16px 13px; border: 1px solid transparent; border-radius: var(--r); }
+  #ui-root.route #ui-head { border-color: rgba(20,22,25,.09);
+    box-shadow: 0 10px 34px rgba(0,0,0,.12); }
   #ui-search { right: auto; width: min(380px, 44vw); }
   #ui-root.start #ui-search { bottom: var(--gap-b); }
   #ui-hint { right: auto; max-width: min(380px, 44vw); }
-  #ui-floors { top: var(--gap-t); bottom: auto; }
+  #ui-floors { top: calc(var(--head-h, 64px) + 8px); bottom: auto; }
   #ui-floors .row { flex-direction: row-reverse; gap: 8px; }
   #ui-card { left: 50%; right: auto; transform: translateX(-50%); bottom: var(--gap-b);
     width: min(420px, calc(100vw - var(--gap-l) - var(--gap-r) - 180px)); }
@@ -442,6 +476,52 @@ export function createUi(
   container.id = 'ui-root';
   root.appendChild(container);
 
+  /* ---------- шапка: имя продукта и крошка ---------- */
+
+  const head = document.createElement('div');
+  head.id = 'ui-head';
+  const headBrand = document.createElement('div');
+  headBrand.className = 'brand';
+  headBrand.textContent = 'UU / Навигатор';
+  const headCrumbs = document.createElement('nav');
+  headCrumbs.className = 'crumbs';
+  headCrumbs.setAttribute('aria-label', 'Где вы находитесь');
+  // Стрелка на скрине стоит перед крошкой и обещает шаг назад. Шаг назад
+  // здесь один — общий вид корпуса, — и она его и делает: мёртвых значков
+  // в шапке нет.
+  const backCrumb = document.createElement('button');
+  backCrumb.type = 'button';
+  backCrumb.className = 'back';
+  backCrumb.textContent = '‹';
+  backCrumb.setAttribute('aria-label', 'Показать корпус целиком');
+  backCrumb.addEventListener('click', () => showWholeBuilding());
+  const campusCrumb = document.createElement('span');
+  campusCrumb.textContent = 'Кампус';
+  const crumbSep = document.createElement('span');
+  crumbSep.className = 'sep';
+  crumbSep.textContent = '/';
+  // Название корпуса — из паспорта здания, а не строкой в интерфейсе:
+  // тот же навигатор ставится на другой корпус без правки кода.
+  const buildingCrumb = document.createElement('button');
+  buildingCrumb.type = 'button';
+  buildingCrumb.textContent = building.passport.shortName;
+  buildingCrumb.setAttribute('aria-label', `${building.passport.shortName}: показать корпус целиком`);
+  buildingCrumb.addEventListener('click', () => showWholeBuilding());
+  headCrumbs.append(backCrumb, campusCrumb, crumbSep, buildingCrumb);
+  head.append(headBrand, headCrumbs);
+  container.appendChild(head);
+
+  /**
+   * Вернуться к общему виду: и состояние сцены, и ракурс. Состояние могло
+   * и не измениться — например, после подлёта оно и так «здание целиком», —
+   * но раскрытие держится на близости камеры, и свернуть его может только отъезд.
+   */
+  function showWholeBuilding(): void {
+    dismissHint();
+    store.set({ mode: 'whole', activeFloor: null, selectedRoomId: null, hoveredRoomId: null });
+    actions.home();
+  }
+
   const known = building.floors.filter((floor) => floor.layoutKnown);
   const unknown = building.floors.filter((floor) => !floor.layoutKnown);
 
@@ -451,7 +531,7 @@ export function createUi(
   hint.id = 'ui-hint';
   // Отладочный оверлей занимает тот же угол — при ?debug=1 подсказка уходит ниже.
   const debugPanel = new URLSearchParams(window.location.search).get('debug') === '1';
-  if (debugPanel) hint.style.top = 'calc(var(--gap-t) + 226px)';
+  if (debugPanel) hint.style.top = 'calc(var(--head-h, 64px) + 226px)';
   const hintText = document.createElement('div');
   if (known.length === 0) {
     hintText.append(
@@ -715,7 +795,7 @@ export function createUi(
   searchList.setAttribute('role', 'group');
   searchList.setAttribute('aria-label', 'Найденные помещения');
   // Отладочный оверлей занимает тот же угол: при ?debug=1 поиск уходит ниже.
-  if (debugPanel) search.style.top = 'calc(var(--gap-t) + 172px)';
+  if (debugPanel) search.style.top = 'calc(var(--head-h, 64px) + 172px)';
   // Быстрые подсказки: три места, которые спрашивают чаще всего. Они не
   // выдумываются, а берутся из данных здания — если такого назначения в доме
   // нет, подсказки просто не будет.
@@ -1222,14 +1302,7 @@ export function createUi(
     'stroke-width="1.8" stroke-linejoin="round"/></svg>';
   homeButton.title = 'Корпус целиком';
   homeButton.setAttribute('aria-label', 'Показать корпус целиком');
-  homeButton.addEventListener('click', () => {
-    dismissHint();
-    store.set({ mode: 'whole', activeFloor: null, selectedRoomId: null, hoveredRoomId: null });
-    // Состояние могло и не измениться — например, после подлёта к зданию оно
-    // и так «здание целиком». Ракурс всё равно возвращаем: раскрытие держится
-    // на близости камеры, и свернуть его может только отъезд.
-    actions.home();
-  });
+  homeButton.addEventListener('click', () => showWholeBuilding());
   row.appendChild(homeButton);
 
   // Постоянно висящее извинение читается как «продукт недоделан» — и читается
@@ -1381,6 +1454,8 @@ export function createUi(
     // не сказал, куда ему. Отменяет только выбранное помещение или цель.
     const idle = state.selectedRoomId === null && state.routeToId === null;
     container.classList.toggle('start', idle);
+    // Маршрут строится — за шапкой оказывается план этажа, и ей нужна подложка.
+    container.classList.toggle('route', state.routeToId !== null);
     // Поиск переезжает между низом и верхом экрана: меняются обе полосы,
     // а размеры самих панелей — нет, и наблюдатель об этом не узнает.
     window.requestAnimationFrame(() => {
@@ -1589,8 +1664,10 @@ export function createUi(
   }
 
   /**
-   * Сколько закрыто сверху: строка поиска. В начальном состоянии поиск лежит
-   * листом снизу, и сверху остаётся только безопасная зона.
+   * Сколько закрыто сверху: шапка, а под ней строка поиска, когда она стоит
+   * вверху. В начальном состоянии поиск лежит листом снизу, и сверху остаётся
+   * одна шапка. Её высотой же двигаются панели под ней — она меряется, а не
+   * задаётся числом: в шапке две строки живого текста.
    *
    * Меряется строка поля, а не весь блок поиска: список находок раскрывается
    * на пол-экрана, и камера не должна отъезжать на каждую набранную букву.
@@ -1598,9 +1675,15 @@ export function createUi(
    * открытый список, то возвращается, и здание дёргалось бы вслед за ней.
    */
   function measureTop(): void {
+    // В переменную кладётся нижняя кромка шапки, а не её высота: в ландшафте
+    // шапка отходит от края карточкой, и панели под ней считаются от кромки.
+    container.style.setProperty('--head-h', `${head.offsetTop + head.offsetHeight}px`);
     const start = container.classList.contains('start');
-    const shown = !start && blocksMiddle(searchField);
-    lastTopOcclusion = shown ? search.offsetTop + searchField.offsetHeight + 8 : 0;
+    let bottom = blocksMiddle(head) ? head.offsetTop + head.offsetHeight : 0;
+    if (!start && blocksMiddle(searchField)) {
+      bottom = Math.max(bottom, search.offsetTop + searchField.offsetHeight);
+    }
+    lastTopOcclusion = bottom > 0 ? bottom + 8 : 0;
     reportOcclusion();
   }
 
@@ -1650,6 +1733,7 @@ export function createUi(
   // поля и его ширины при повороте экрана.
   const topResize = new ResizeObserver(() => measureTop());
   topResize.observe(searchField);
+  topResize.observe(head);
 
   render(store.state);
   const unsubscribe = store.subscribe((next) => render(next));
