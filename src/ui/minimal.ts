@@ -384,11 +384,12 @@ export interface UiActions {
    */
   placeInfo: (id: string) => PlaceInfo | undefined;
   /**
-   * Высота нижней панели изменилась (стартовый лист или карточка места).
-   * Точка сборки подводит этим числом кадр камеры — здание центрируется
-   * в части экрана, свободной от панели, а не во весь экран целиком.
+   * Отступы интерфейса изменились: сверху — строка поиска и подсказка,
+   * снизу — стартовый лист или карточка места. Точка сборки подводит этими
+   * числами кадр камеры — здание вписывается в свободную часть экрана
+   * и центрируется в ней, а не во весь холст целиком.
    */
-  onOcclusionChange?: (px: number) => void;
+  onInsetsChange?: (insets: { top: number; bottom: number }) => void;
 }
 
 /** Строки карточки места: номер, название и где это. */
@@ -1333,6 +1334,7 @@ export function createUi(
   window.addEventListener('resize', reportInterfaceEdge);
   // Поворот экрана меняет и ширину листа, и его высоту.
   window.addEventListener('resize', measureStart);
+  window.addEventListener('resize', measureTop);
 
   /**
    * Экранная клавиатура. На iOS она не меняет вёрстку страницы: лист с полем
@@ -1379,7 +1381,12 @@ export function createUi(
     // не сказал, куда ему. Отменяет только выбранное помещение или цель.
     const idle = state.selectedRoomId === null && state.routeToId === null;
     container.classList.toggle('start', idle);
-    window.requestAnimationFrame(measureStart);
+    // Поиск переезжает между низом и верхом экрана: меняются обе полосы,
+    // а размеры самих панелей — нет, и наблюдатель об этом не узнает.
+    window.requestAnimationFrame(() => {
+      measureStart();
+      measureTop();
+    });
     const from = state.routeFromId;
     const fromPlace = from ? actions.placeInfo(from) : undefined;
     searchMe.classList.toggle('on', Boolean(fromPlace));
@@ -1556,6 +1563,7 @@ export function createUi(
    */
   let lastCardOcclusion = 0;
   let lastStartOcclusion = 0;
+  let lastTopOcclusion = 0;
 
   function measureCard(): void {
     const height = card.hidden ? 0 : card.offsetHeight;
@@ -1563,7 +1571,7 @@ export function createUi(
     // Отдельная величина без нижней границы: ею список обозначений
     // отодвигается от карточки, а когда карточки нет — не отодвигается вовсе.
     container.style.setProperty('--card-over', `${height > 0 ? height + 8 : 0}px`);
-    lastCardOcclusion = height > 0 ? height + gapBottom() : 0;
+    lastCardOcclusion = height > 0 && blocksMiddle(card) ? height + gapBottom() : 0;
     reportOcclusion();
   }
 
@@ -1576,8 +1584,37 @@ export function createUi(
     const start = container.classList.contains('start');
     const height = start ? search.offsetHeight : 0;
     container.style.setProperty('--start-h', `${height}px`);
-    lastStartOcclusion = height > 0 ? height + gapBottom() : 0;
+    lastStartOcclusion = height > 0 && blocksMiddle(search) ? height + gapBottom() : 0;
     reportOcclusion();
+  }
+
+  /**
+   * Сколько закрыто сверху: строка поиска. В начальном состоянии поиск лежит
+   * листом снизу, и сверху остаётся только безопасная зона.
+   *
+   * Меряется строка поля, а не весь блок поиска: список находок раскрывается
+   * на пол-экрана, и камера не должна отъезжать на каждую набранную букву.
+   * Подсказка под полем в счёт не идёт по той же причине: она то прячется под
+   * открытый список, то возвращается, и здание дёргалось бы вслед за ней.
+   */
+  function measureTop(): void {
+    const start = container.classList.contains('start');
+    const shown = !start && blocksMiddle(searchField);
+    lastTopOcclusion = shown ? search.offsetTop + searchField.offsetHeight + 8 : 0;
+    reportOcclusion();
+  }
+
+  /**
+   * Панель отодвигает камеру, только если стоит зданию на пути — то есть
+   * закрывает середину экрана. В ландшафте и поиск, и стартовый лист уходят
+   * узкой колонкой к левому краю: отъезжать из-за них значит терять высоту
+   * там, где здание помещалось целиком.
+   */
+  function blocksMiddle(element: HTMLElement): boolean {
+    const box = element.getBoundingClientRect();
+    if (box.width <= 0 || box.height <= 0) return false;
+    const middle = (window.innerWidth || 1) / 2;
+    return box.left <= middle && box.right >= middle;
   }
 
   /** Отступ безопасной зоны снизу: та же переменная, что держит панели над краем. */
@@ -1592,7 +1629,10 @@ export function createUi(
    * а не сумма: они лежат в одном нижнем углу, а не друг под другом.
    */
   function reportOcclusion(): void {
-    actions.onOcclusionChange?.(Math.max(lastCardOcclusion, lastStartOcclusion));
+    actions.onInsetsChange?.({
+      top: lastTopOcclusion,
+      bottom: Math.max(lastCardOcclusion, lastStartOcclusion),
+    });
   }
 
   /**
@@ -1606,6 +1646,10 @@ export function createUi(
   startResize.observe(search);
   const cardResize = new ResizeObserver(() => measureCard());
   cardResize.observe(card);
+  // Верхняя полоса меряется тем же способом: наблюдатель ловит смену высоты
+  // поля и его ширины при повороте экрана.
+  const topResize = new ResizeObserver(() => measureTop());
+  topResize.observe(searchField);
 
   render(store.state);
   const unsubscribe = store.subscribe((next) => render(next));
@@ -1631,8 +1675,10 @@ export function createUi(
       window.clearTimeout(noteTimer);
       startResize.disconnect();
       cardResize.disconnect();
+      topResize.disconnect();
       window.removeEventListener('resize', reportInterfaceEdge);
       window.removeEventListener('resize', measureStart);
+      window.removeEventListener('resize', measureTop);
       viewport?.removeEventListener('resize', liftForKeyboard);
       viewport?.removeEventListener('scroll', liftForKeyboard);
       window.removeEventListener('pointerdown', onScenePointer, true);

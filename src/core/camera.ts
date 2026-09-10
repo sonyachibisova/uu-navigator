@@ -6,6 +6,11 @@
  * соотношении сторон. Поэтому на телефоне в портрете здание видно целиком,
  * а не обрезанным с двух концов, и рамка пересчитывается при смене размера окна.
  *
+ * Считается при этом не весь холст, а его свободная часть: интерфейс сообщает
+ * камере, сколько пикселей закрыто сверху (шапка и поиск) и снизу (стартовый
+ * лист или карточка места), и габарит вписывается в прямоугольник за вычетом
+ * этих полос. Иначе здание уезжает под нижнюю карточку, а сверху остаётся пустота.
+ *
  * Всё сглаживание идёт по времени кадра (`damp`), а не по числу кадров
  * (инвариант 6 правил проекта): на 120 Гц и на 30 Гц движение одинаковое.
  */
@@ -40,6 +45,13 @@ const PORTRAIT_VIEW = { elevation: 50, azimuth: 66 };
 const PORTRAIT_ASPECT = 0.95;
 /** Запас вокруг габарита, чтобы здание не касалось краёв кадра. */
 const FRAME_MARGIN = 1.08;
+/**
+ * Меньшей доли высоты холста интерфейс камере оставить не вправе. Раскрытая
+ * карточка маршрута на коротком телефоне выше половины экрана, и без этого
+ * предела свободный прямоугольник вырождается, а дистанция обзора улетает
+ * в бесконечность.
+ */
+const MIN_FREE_HEIGHT = 0.3;
 /** Точка интереса по высоте: середина габарита. */
 const TARGET_HEIGHT = 0.5;
 /** Скорость подвода точки интереса: λ ≈ 3.7 повторяет прежнее ощущение на 60 кадрах. */
@@ -119,14 +131,17 @@ export interface CameraHandle {
    */
   overviewDistance: () => number;
   /**
-   * Сообщить камере, сколько пикселей внизу экрана закрыто интерфейсом
-   * (стартовый лист, карточка места), — здание должно центрироваться
-   * в свободной части экрана, а не за вычетом невидимой полосы.
-   * Двигает не саму камеру, а срез кадра (`setViewOffset`): точка интереса
-   * остаётся на месте, картинка просто смещается вверх на нужную долю —
-   * ракурс и дистанция подлёта этим не затрагиваются.
+   * Сообщить камере отступы интерфейса в пикселях: сверху — шапка и строка
+   * поиска, снизу — стартовый лист или карточка места. Габарит вписывается
+   * в прямоугольник за вычетом этих полос, а центр здания встаёт в центр
+   * прямоугольника, а не кадра.
+   *
+   * Двигается при этом не точка интереса, а срез кадра (`setViewOffset`):
+   * пивот вращения остаётся в центре здания, и всё, что камера когда-либо
+   * центрирует — помещение, шаг маршрута, этаж, — попадает в свободную часть
+   * экрана само, без отдельной поправки на каждом вызове.
    */
-  setBottomInset: (px: number) => void;
+  setInsets: (insets: { top: number; bottom: number }) => void;
   dispose: () => void;
 }
 
@@ -227,11 +242,70 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
     );
   }
 
+  /** Пикселей, закрытых интерфейсом сверху и снизу — см. `setInsets`. */
+  let insetTop = 0;
+  let insetBottom = 0;
+
+  /**
+   * Свободный прямоугольник кадра: холст за вычетом полос интерфейса.
+   * Если панели просят больше, чем им отведено, отступы урезаются
+   * пропорционально — здание должно остаться видимым даже под раскрытой
+   * карточкой маршрута на коротком экране.
+   */
+  function freeRect(): { width: number; height: number; top: number; free: number } {
+    const width = Math.max(domElement.clientWidth, 1);
+    const height = Math.max(domElement.clientHeight, 1);
+    let top = Math.max(insetTop, 0);
+    let bottom = Math.max(insetBottom, 0);
+    const budget = height * (1 - MIN_FREE_HEIGHT);
+    const sum = top + bottom;
+    if (sum > budget) {
+      const scale = budget / sum;
+      top *= scale;
+      bottom *= scale;
+    }
+    return { width, height, top, free: height - top - bottom };
+  }
+
+  /**
+   * Соотношение сторон свободного прямоугольника: по нему вписывается габарит.
+   * По ширине кадр не режут — панели лежат сверху и снизу, — поэтому ширина
+   * берётся вся, а высота только свободная.
+   */
+  function fitAspect(): number {
+    const rect = freeRect();
+    return rect.width / Math.max(rect.free, 1);
+  }
+
+  /**
+   * Свести проекцию к свободному прямоугольнику. Полным кадром камеры (тем,
+   * что покрывает `FOV`) объявляется свободный прямоугольник, а холст —
+   * окном вокруг него: `setViewOffset` расширяет пирамиду ровно на полосы,
+   * занятые панелями. Оттого центр кадра камеры приходится на центр свободной
+   * части экрана, а не холста, и точка интереса при этом никуда не сдвигается.
+   *
+   * Полный кадр всегда имеет соотношение сторон камеры, поэтому по ширине он
+   * берётся сжатым в том же отношении, что и по высоте, — иначе картинка
+   * растянулась бы.
+   */
+  function applyInsets(): void {
+    const { width, height, top, free } = freeRect();
+    if (height - free < 0.5) {
+      camera.clearViewOffset();
+    } else {
+      const fullWidth = width * (free / height);
+      camera.setViewOffset(fullWidth, free, -(width - fullWidth) / 2, -top, width, height);
+    }
+    camera.updateProjectionMatrix();
+  }
+
   /** Пересчитать стартовую рамку под текущее соотношение сторон. */
   function updateHomeFrame(): void {
+    // Портретность — свойство экрана, а не свободного окна: иначе раскрытая
+    // карточка делала бы кадр «ландшафтным» и разворачивала здание в руках.
     const portrait = camera.aspect < PORTRAIT_ASPECT;
     const direction = directionOf(portrait ? PORTRAIT_VIEW : LANDSCAPE_VIEW);
-    const distance = frameDistance(direction, half, FOV, camera.aspect);
+    const distance = frameDistance(direction, half, FOV, fitAspect());
     overview = distance;
     homePosition.copy(direction).multiplyScalar(distance).add(homeTarget);
     controls.maxDistance = Math.max(frame.radius * MAX_DISTANCE_FACTOR, distance * 1.6);
@@ -284,25 +358,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
   }
   controls.addEventListener('start', onUserInput);
 
-  /** Пикселей снизу, закрытых интерфейсом — см. `setBottomInset`. */
-  let bottomInset = 0;
-
-  /**
-   * Пересчитать срез кадра под текущий размер холста и текущий отступ.
-   * Смещение — доля от отношения (высота холста + отступ) к высоте холста:
-   * ровно то, что нужно, чтобы точка интереса, обычно попадающая в центр
-   * кадра, встала в центр области над панелью, а не экрана целиком.
-   */
-  function applyBottomInset(): void {
-    const width = domElement.clientWidth;
-    const height = domElement.clientHeight;
-    if (bottomInset > 0 && width > 0 && height > 0) {
-      camera.setViewOffset(width, height + bottomInset, 0, bottomInset, width, height);
-    } else {
-      camera.clearViewOffset();
-    }
-    camera.updateProjectionMatrix();
-  }
+  applyInsets();
 
   return {
     camera,
@@ -313,7 +369,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
         updateHomeFrame();
         // Холст сменил размер (resize, поворот экрана) — срез кадра посчитан
         // под старые пиксели и без обновления съедет.
-        applyBottomInset();
+        applyInsets();
         // Пока человек не трогал камеру (первые секунды, поворот экрана в руках),
         // рамка подстраивается сама. После первого касания — только по кнопке возврата.
         if (!touched) {
@@ -369,7 +425,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       // и именно она раньше отбрасывала камеру на дистанцию всего здания.
       flightHalf.set(half.x, Math.max(thickness, 0.5) / 2, half.z);
       const distance = MathUtils.clamp(
-        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        frameDistance(flightDirection, flightHalf, FOV, fitAspect()),
         controls.minDistance * 1.2,
         controls.maxDistance * 0.9,
       );
@@ -387,7 +443,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       flightDirection.set(Math.sin(azimuth) * flat, Math.sin(elevation), Math.cos(azimuth) * flat);
       flightHalf.set(Math.max(halfX, 4), 2, Math.max(halfZ, 4));
       const distance = MathUtils.clamp(
-        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        frameDistance(flightDirection, flightHalf, FOV, fitAspect()),
         controls.minDistance * 1.2,
         controls.maxDistance * 0.9,
       );
@@ -407,7 +463,7 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       const size = Math.max(radius, 1);
       flightHalf.set(size, size / 2, size);
       const distance = MathUtils.clamp(
-        frameDistance(flightDirection, flightHalf, FOV, camera.aspect),
+        frameDistance(flightDirection, flightHalf, FOV, fitAspect()),
         controls.minDistance * 1.2,
         controls.maxDistance * 0.9,
       );
@@ -446,11 +502,24 @@ export function createCamera(frame: CameraFrame, domElement: HTMLElement): Camer
       startFlight();
     },
     overviewDistance: () => overview,
-    setBottomInset(px: number): void {
-      const next = Math.max(0, Math.round(px));
-      if (next === bottomInset) return;
-      bottomInset = next;
-      applyBottomInset();
+    setInsets(insets: { top: number; bottom: number }): void {
+      const top = Math.max(0, Math.round(insets.top));
+      const bottom = Math.max(0, Math.round(insets.bottom));
+      if (top === insetTop && bottom === insetBottom) return;
+      insetTop = top;
+      insetBottom = bottom;
+      applyInsets();
+      // Свободный прямоугольник стал другим — вместе с ним и дистанция, с которой
+      // габарит в него помещается. Она же опорная для близости камеры.
+      updateHomeFrame();
+      // Пока человек камеру не трогал, рамка подстраивается сама и доезжает
+      // через `damp` (инвариант 6): карточка раскрывается плавно, камера
+      // не прыгает вслед за каждым замером её высоты.
+      if (!touched) {
+        flightPosition.copy(homePosition);
+        goal.copy(homeTarget);
+        startFlight();
+      }
     },
     dispose(): void {
       controls.removeEventListener('start', onUserInput);
